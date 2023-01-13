@@ -52,7 +52,7 @@ class MSync
 	protected string $user       = '';
 	protected string $sshKeyPath = '';
 	protected string $password   = '';
-	protected bool   $verbose    = true;
+	protected bool   $verbose;
 
 	/**
 	 * Alwas ingnore these files during pushing and pulling files to and from server.
@@ -312,7 +312,7 @@ class MSync
 
 	public function initializeManifest(array $files)
 	{
-		$msync->openManifest();
+		$this->openManifest();
 		$t = $_SERVER['REQUEST_TIME'];
 
 		foreach ($files as $f) {
