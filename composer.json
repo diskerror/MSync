@@ -1,0 +1,29 @@
+{
+	"name": "reid/suite-crm-tools",
+	"description": "A set of scripts to help manage a SuiteCRM instance.",
+	"type": "project",
+	"require": {
+		"php": "7.4.*",
+		"ext-sqlite3": "*",
+		"ext-readline": "*",
+		"diskerror/autoload": "dev-main",
+		"diskerror/typed": "0.8.*",
+		"laminas/laminas-json": "~3.3.0",
+		"php-ds/php-ds": "*",
+		"phpseclib/phpseclib": "*"
+	},
+	"suggest": {
+		"ext-ds": "Extension for data structures rather than the PHP array implementation."
+	},
+	"authors": [
+		{
+			"name": "Reid Woodbury Jr.",
+			"email": "reid@rawsound.com"
+		}
+	],
+	"autoload": {
+		"psr-4": {
+			"Model\\": "models"
+		}
+	}
+}
