@@ -1,8 +1,10 @@
 <?php
 
+use RuntimeException;
+
 namespace Model\Exceptions;
 
-class SqliteException extends \RuntimeException
+class SqliteException extends RuntimeException
 {
 
 }

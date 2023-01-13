@@ -1,31 +1,40 @@
-#!php
+#!/usr/bin/env php
 <?php
 /**
  * msync
  * Synchronize directories like rsync but with an additional manifest so that
- * changes on the remote system before damage is done.
+ * changes on the remote system are caught before damage is done.
  *
  * Written using MacOS 13.1 Ventura for the local workstation and
- * connecting to a server running Debian 10 (findutils).
+ * connecting to a server running Debian 10.
  */
 
 use Model\Exceptions\HelpException;
 use Model\Exceptions\NotInitializedException;
-use Model\MSync;
+use Model\Manifest;
+use Model\Opts;
+use Model\Report;
+use Model\Sync;
+
+ini_set('error_reporting', E_ALL);
 
 require 'vendor/diskerror/autoload/autoload.php';
 
-define('USAGE', <<<'DEFINE_USAGE'
+const DATA_DIR = '.msync/';
+const MANIFEST_FILE = DATA_DIR . 'manifest.db';
+const CONFIG_FILE = DATA_DIR . 'config.ini';
+const TEMP_DIR = DATA_DIR . 'temp/';
+
+const USAGE = <<<'DEFINE_USAGE'
 Usage:
 	msync -H | --help
 	msync [-d|--directory dir] [-h|--host hostname]
 		[-p|--password passwd] [-u|--username uname]
 		init | check | pull | push | resolve
 
-DEFINE_USAGE
-);
+DEFINE_USAGE;
 
-define('HELP_PAGE', <<<'DEFINE_HELP_PAGE'
+const HELP_PAGE = <<<'DEFINE_HELP_PAGE'
 
 
 DESCRIPTION
@@ -37,7 +46,7 @@ like rsync where there are three (afaik) choices from the remote directory.
 good), and 3) check a list of changes to be done from a change report, such
 as using "rsync -in src dest"
 
-This program also ignores files asymetrically.
+This program also ignores files asymmetrically.
 For instance, files in a directory named "cache" in the remote directory might
 need to be in the local directory so that a step debugger can see them and step
 through them locally, but should not be pushed back to the remote directory as
@@ -50,18 +59,18 @@ VERBS
 	init:
 		Copies remote directory into the current or specified directory. Only
 		new or changed files are copied. Nothing is deleted.
-	
+
 	check:
 		Checks the non-ignored files on the remote directory to see if they
 		have changed since last time a 'check', 'pull', or 'push' was
 		performed.
-	
+
 	pull:
 		Pull new files from remote directory. If a file has been changed local-
 		ly then the changed file will be placed into a temporary directory for
 		the user to check and merge changes and a conflict will be recorded for
 		that file.
-	
+
 	push:
 		Push changed files to remote directory. If any file in the remote
 		directory has changed since 'check' was last run the file conflict has
@@ -77,20 +86,20 @@ VERBS
 OPTIONS:
 
 	-H  This screen.
-	
+
 	-d, --directory
 		Specify the local working directory instead of the current working
 		directory.
-	
+
 	-h, --host
 		Remote host name or IP address. This will override the setting in the
 		config file.
-	
+
 	-p, --password
 		[not working]
 		Specify a password to log into the remote system. If there is no pass-
 		word then the user's ssh key, "~/.ssh/id_rsa" is used.
-	
+
 	-u, --username
 		Overrides the username set in the config file. 
 
@@ -111,8 +120,7 @@ NEVER_HASH
 NO_PUSH_REGEX
 
 
-DEFINE_HELP_PAGE
-);
+DEFINE_HELP_PAGE;
 
 
 $exit = 0;
@@ -121,63 +129,85 @@ $exit = 0;
 //	MAIN
 
 try {
-	$msync  = new MSync();
+	$opts = new Opts(CONFIG_FILE);
 
-	if (!isset($argv[$msync->restIndex])) {
+	if (!isset($argv[$opts->restIndex])) {
 		fprintf(STDERR, USAGE . PHP_EOL);
 		exit(1);
 	}
 
 	ini_set('memory_limit', '512M');
 
+	if (!is_dir(DATA_DIR)) {
+		mkdir(DATA_DIR);
+	}
+
 	//  Do command verb.
-	switch ($argv[$msync->restIndex]) {
+	switch ($argv[$opts->restIndex]) {
 		case 'init':
-			if ($msync->assertInitialized()) {
+			$report = new Report($opts->verbose);
+			if (file_exists(MANIFEST_FILE)) {
 				$cont = 'no';   //  default reply
-				fprintf(STDOUT, 'This is an msync managed directory!' . PHP_EOL);
-				fprintf(STDOUT, 'Do you wish to overwrite all working files? [y|N]:');
+				$report->scream('This is an msync managed directory!');
+				$report->scream('Do you wish to overwrite all working files? [y|N]:', false);
 				if ($rline = readline(' ')) {
 					$cont = $rline;
 				}
 
 				if (substr(strtolower($cont), 0, 1) !== 'y') {
-					fprintf(STDOUT, 'Canceled.' . PHP_EOL);
+					$report->out(STDOUT, 'Canceled.' . PHP_EOL);
 					break;
 				}
 
-				unlink(MSync::MANIFEST_FILE);
+				unlink(MANIFEST_FILE);
 			}
 
-			$remoteArray = $msync->getRemoteList();
-			$msync->pullFiles($remoteArray);
-			$msync->initializeManifest($remoteArray);
+			$report->out('Opening connection to remote server.');
+			$sync = new Sync($opts);
 
-			$msync->report->out(PHP_EOL . 'Initialization complete.');
+			$report->out('Retrieving remote file list.');
+			$remoteArray = $sync->getRemoteList();
+
+			$report->out('Pulling new or different files.');
+			$sync->pullFiles($remoteArray);
+
+			$report->out('Writing file info to manifest.');
+			(new Manifest(MANIFEST_FILE))->firstWrite($remoteArray);
+
+			$report->out(PHP_EOL . 'Initialization complete.');
 			break;
+
 
 		case 'check':
-			if (!$msync->assertInitialized()) {
+			if (!file_exists(MANIFEST_FILE)) {
 				throw new NotInitializedException();
 			}
-			$remoteArray = $msync->getRemoteList();
-			$devArray    = $msync->getDevList();
+
+			$sync        = new Sync($opts);
+			$remoteArray = $sync->getRemoteList();
+			$devArray    = $sync->getDevList();
+			//  TODO: finish
 			break;
 
+
 		case 'push':
-			if (!$msync->assertInitialized()) {
+			if (!file_exists(MANIFEST_FILE)) {
 				throw new NotInitializedException();
 			}
+
+			$sync = new Sync($opts);
 			//  TODO: finnish this
 			break;
 
+
 		case 'pull':
-			if (!$msync->assertInitialized()) {
+			if (!file_exists(MANIFEST_FILE)) {
 				throw new NotInitializedException();
 			}
 
-			$remoteArray = $msync->getRemoteList();
-			$devArray    = $msync->getDevList();
+			$sync        = new Sync($opts);
+			$remoteArray = $sync->getRemoteList();
+			$devArray    = $sync->getDevList();
 			//  TODO: finnish this
 
 
@@ -280,8 +310,9 @@ catch (HelpException $e) {
 	fprintf(STDOUT, HELP_PAGE);
 }
 catch (NotInitializedException $e) {
-	$msync->report->error('This is not an msync managed directory.');
-	$msync->report->error('Use ‘msync init’ to create local workspace.');
+	$r = new Report($opts->verbose);
+	$r->scream('This is not an msync managed directory.');
+	$r->scream('Use ‘msync init’ to create local workspace.');
 	$exit = 1;
 }
 catch (Throwable $t) {

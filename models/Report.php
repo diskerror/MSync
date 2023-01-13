@@ -13,32 +13,33 @@ class Report
 		$this->beQuiet = $quiet;
 	}
 
-	public function out(string $str)
+	public function out(string $str, bool $nl = true)
 	{
 		if ($this->doPrint) {
-			fprintf(STDOUT, $str . PHP_EOL);
+			fprintf(STDOUT, $str . ($nl ? PHP_EOL : ''));
 		}
 	}
 
-	public function scream(string $str)
+	public function scream(string $str, bool $nl = true)
 	{
-		fprintf(STDOUT, $str . PHP_EOL);
+		fprintf(STDOUT, $str . ($nl ? PHP_EOL : ''));
 	}
 
 	public function status(string $str)
 	{
 		if ($this->doPrint) {
-			static $oldLines = 0;
-			$newLines = substr_count($str, "\n");
-
-			if ($oldLines == 0) {
-				$oldLines = $newLines;
-			}
-
-			echo chr(27) . '[0G';
-			echo chr(27) . '[' . $oldLines . 'A' . PHP_EOL;
-
-			$oldLines = $newLines;
+//			static $oldLines = 0;
+//			$newLines = substr_count($str, "\n");
+//
+//			if ($oldLines == 0) {
+//				$oldLines = $newLines;
+//			}
+//
+//			echo chr(27) . '[0G';
+//			echo chr(27) . '[' . $oldLines . 'A' . PHP_EOL;
+//
+//			$oldLines = $newLines;
+			echo "\r" . $str;
 		}
 	}
 

@@ -4,8 +4,9 @@
 	"type": "project",
 	"require": {
 		"php": "7.4.*",
-		"ext-sqlite3": "*",
+		"ext-json":"*",
 		"ext-readline": "*",
+		"ext-sqlite3": "*",
 		"diskerror/autoload": "dev-main",
 		"diskerror/typed": "0.8.*",
 		"laminas/laminas-json": "~3.3.0",
