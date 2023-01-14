@@ -3,6 +3,7 @@
 namespace Model;
 
 use Exception;
+use Laminas\Json\Exception\RuntimeException;
 use Laminas\Json\Json;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
@@ -77,9 +78,16 @@ class Sync
 		$response = $this->sftp->exec("echo '$cmd' | php -a");
 
 		//	Remove text before first '[' or '{'.
-		$response= preg_replace('/^[^[{]*(.+)$/sAD', '$1', $response);
+		$response = preg_replace('/^[^[{]*(.+)$/sAD', '$1', $response);
 
-		return Json::decode($response, JSON_OBJECT_AS_ARRAY);
+		try {
+			$arr = Json::decode($response, JSON_OBJECT_AS_ARRAY);
+		}
+		catch (RuntimeException $e) {
+			throw new \RuntimeException('Json: ' . $e->getMessage(), $e->getCode(), $e);
+		}
+
+		return $arr;
 	}
 
 	public function getDevList(): array
@@ -102,14 +110,14 @@ class Sync
 		$of_ct  = ' of ' . count($files);
 
 		foreach ($files as $file) {
+			$fname = $file['fname'];
+			$dname = dirname($fname);
+
+			if (!file_exists($dname)) {
+				mkdir($dname, 0755, true);
+			}
+
 			if ($file['ftype'] === 'f') {
-				$fname = $file['fname'];
-				$dname = dirname($fname);
-
-				if (!file_exists($dname)) {
-					mkdir($dname, 0755, true);
-				}
-
 				/**
 				 * Copy the file to here when:
 				 *        it doesn't exist locally
@@ -124,6 +132,25 @@ class Sync
 				) {
 					$report->status($i . $of_ct);
 					$this->sftp->get($fname, $fname);
+				}
+
+				++$i;
+			}
+
+			if ($file['ftype'] === 'l') {
+				/**
+				 * Copy the file to here when:
+				 *        it doesn't exist locally
+				 *        it is not a symbolic link
+				 */
+				if (!file_exists($fname) || !is_link($fname)) {
+					$report->status($i . $of_ct);
+					if (file_exists($fname)) {
+						unlink($fname);
+					}
+
+					$target = $this->sftp->exec("php -r 'echo readlink(\"{$this->opts->remotePath}/$fname\");'");
+					symlink($target, $fname);
 				}
 
 				++$i;
@@ -143,7 +170,7 @@ class Sync
 				touch($dname, $file['modts']);
 			}
 		}
-		
+
 		$report->out('');
 	}
 }

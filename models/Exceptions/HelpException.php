@@ -1,10 +1,8 @@
 <?php
 
-use RuntimeException;
-
 namespace Model\Exceptions;
 
-class HelpException extends RuntimeException
+class HelpException extends \RuntimeException
 {
 
 }

@@ -23,7 +23,7 @@ class Opts
 	protected string $sshKeyPath = '';
 	protected string $password   = '';
 	protected bool   $verbose;
-	protected int    $restIndex;
+	protected ?int   $restIndex;
 
 	public function __construct(string $configPath)
 	{
@@ -33,11 +33,11 @@ class Opts
 
 		/**
 		 * Always ignore these entries:
-		 * 	top directory and directories above the current directory (., ..)
-		 * 	any hidden file (starting with a dot)
-		 * 	all log files, data files, uploaded business files
-		 * 	database backup file
-		 * 	and extra upload* files.
+		 *    top directory and directories above the current directory (., ..)
+		 *    any hidden file (starting with a dot)
+		 *    all log files, data files, uploaded business files
+		 *    database backup file
+		 *    and extra upload* files.
 		 */
 		$this->IGNORE_REGEX = <<<'NDOC'
 			/\.
@@ -91,8 +91,7 @@ class Opts
 			}
 		}
 
-		$this->restIndex = 0;
-		$opts            = getopt(
+		$opts = getopt(
 			'd:Hh:p::u:v',
 			['directory:', 'help', 'host:', 'password::', 'username:', 'verbose'],
 			$this->restIndex
@@ -103,17 +102,17 @@ class Opts
 		}
 
 		if (array_key_exists('d', $opts)) {
-			$this->localPath = $opts['d'];
+			$this->localPath = ltrim($opts['d']);
 		}
 		elseif (array_key_exists('directory', $opts)) {
-			$this->localPath = $opts['directory'];
+			$this->localPath = ltrim($opts['directory']);
 		}
 
 		if (array_key_exists('h', $opts)) {
-			$this->host = $opts['h'];
+			$this->host = trim($opts['h']);
 		}
 		elseif (array_key_exists('host', $opts)) {
-			$this->host = $opts['host'];
+			$this->host = trim($opts['host']);
 		}
 
 		//  TODO: make password behavior like mysql
@@ -125,10 +124,10 @@ class Opts
 		}
 
 		if (array_key_exists('u', $opts)) {
-			$this->user = $opts['u'];
+			$this->user = trim($opts['u']);
 		}
 		elseif (array_key_exists('user', $opts)) {
-			$this->user = $opts['user'];
+			$this->user = trim($opts['user']);
 		}
 
 		if ($this->user === '') {
@@ -143,8 +142,6 @@ class Opts
 		}
 
 		$this->verbose = array_key_exists('v', $opts) || array_key_exists('verbose', $opts);
-
-		$this->localPath = trim($this->localPath);
 
 		if ($this->localPath[0] === '~') {
 			$this->localPath = $_SERVER['HOME'] . substr($this->localPath, 1);
