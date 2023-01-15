@@ -19,42 +19,41 @@ class Manifest
 		$this->sqlite->exec('PRAGMA encoding = \'UTF-8\'');
 
 		$this->sqlite->exec(
-			'CREATE TABLE IF NOT EXISTS last_sync (
+			"CREATE TABLE IF NOT EXISTS last_sync (
 				fname TEXT UNIQUE ON CONFLICT REPLACE,
-				ftype TEXT DEFAULT "",
+				ftype TEXT DEFAULT '',
 				sizeb INTEGER DEFAULT 0, 
 				modts INTEGER DEFAULT 0,
-				hashval BLOB DEFAULT "",
+				hashval BLOB DEFAULT '',
 				init_sync INTEGER DEFAULT 0,
-				last_sync INTEGER DEFAULT 0,
-				conflict INTEGER DEFAULT 0
-			)'
+				last_sync INTEGER DEFAULT 0
+			)"
 		);
 	}
 
+
 	public function firstWrite(array $files)
 	{
-		$report = new Report($this->opts->verbose);
-		$i      = 1;
-		$of_ct  = ' of ' . count($files);
+		$ct         = count($files);
+		$of_ct      = ' of ' . $ct;
+		$t          = $_SERVER['REQUEST_TIME'];
 
-		$t = $_SERVER['REQUEST_TIME'];
+		$values    = [];
+		for ($i = 0; $i < $ct; ++$i) {
+			$f        = $files[$i];
+			$fname    = SQLite3::escapeString($f['fname']);
+			$values[] = "('$fname', '{$f['ftype']}', {$f['sizeb']}, {$f['modts']}, X'{$f['hashval']}', $t, $t)";
+		}
 
-		foreach ($files as $f) {
-			$report->status($i++ . $of_ct);
+		if (count($values) > 0) {
+			$hugeQuery =
+				"INSERT INTO last_sync (fname, ftype, sizeb, modts, hashval, init_sync, last_sync) VALUES " .
+				implode(',', $values);
 
-			$fname = SQLite3::escapeString($f['fname']);
-			$res   = $this->sqlite->exec(
-				'INSERT INTO last_sync (fname, ftype, sizeb, modts, hashval, init_sync, last_sync) ' .
-				"VALUES ('$fname', '{$f['ftype']}', {$f['sizeb']}, {$f['modts']}, X'{$f['hashval']}', $t, $t)"
-			);
-
-			if (!$res) {
+			if (!$this->sqlite->exec($hugeQuery)) {
 				throw new SQLiteException('problem with insert');
 			}
 		}
-
-		$report->out('');
 	}
 
 }

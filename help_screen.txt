@@ -23,11 +23,6 @@ VERBS
 		Copies remote directory into the current or specified directory. Only
 		new or changed files are copied. Nothing is deleted.
 
-	check:
-		Checks the non-ignored files on the remote directory to see if they
-		have changed since last time a 'check', 'pull', or 'push' was
-		performed.
-
 	pull:
 		Pull new files from remote directory. If a file has been changed local-
 		ly then the changed file will be placed into a temporary directory for
@@ -43,7 +38,7 @@ VERBS
 	resolve:
 		Removes conflict mark from file. The local file will now overwrite the
 		same file in the remote directory during the next push. This verb re-
-		quires a relative file name.
+		quires a relative path to file.
 
 
 OPTIONS:

@@ -7,21 +7,9 @@ This has the basic features and adds a manifest file, thus “msync”. It aids 
 
 Help:
 ```
-./msync.php -H
+./msync -H
 ```
 
-## ~/.*profile
+## help_screen.txt
 
-I've added this line to my  ".zprofile" file (MacOS Ventura):
-
-~~~
-alias msync=~/Documents/Diskerror/MSync/msync
-~~~
-So now asking for the help screen goes like:
-~~~
-msync -H
-~~~
-
-## help_page.txt
-
-Read the file “help_page.txt” for what’s planned.
+Read the file “help_screen.txt” for what’s planned.

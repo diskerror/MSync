@@ -59,7 +59,7 @@ class Sync
 
 	public function getRemoteList(): array
 	{
-		$cmd = php_strip_whitespace(__DIR__ . '/../find.php');
+		$cmd = php_strip_whitespace('find.php');
 		$cmd = substr($cmd, 6);    //	removes "<?php\n"
 		$cmd = str_replace(
 			['$path', '$plength', '$regexIgnore', '$regexNoHash', '$hashName'],
@@ -98,7 +98,7 @@ class Sync
 		$regexNoHash = self::hdToRegex($this->opts->NO_PUSH_REGEX);
 		$hashName    = self::HASH_ALGO;
 
-		require __DIR__ . '/../find.php';
+		require 'find.php';
 
 		return $rtval;
 	}
@@ -106,10 +106,12 @@ class Sync
 	public function pullFiles(array $files): void
 	{
 		$report = new Report($this->opts->verbose);
-		$i      = 1;
+		$i      = 0;
 		$of_ct  = ' of ' . count($files);
 
+		$directories = [];
 		foreach ($files as $file) {
+			++$i;
 			$fname = $file['fname'];
 			$dname = dirname($fname);
 
@@ -130,21 +132,16 @@ class Sync
 						$file['hashval'] !== hash_file(self::HASH_ALGO, $fname)
 					)
 				) {
-					$report->status($i . $of_ct);
 					$this->sftp->get($fname, $fname);
 				}
-
-				++$i;
 			}
-
-			if ($file['ftype'] === 'l') {
+			elseif ($file['ftype'] === 'l') {
 				/**
 				 * Copy the file to here when:
 				 *        it doesn't exist locally
 				 *        it is not a symbolic link
 				 */
 				if (!file_exists($fname) || !is_link($fname)) {
-					$report->status($i . $of_ct);
 					if (file_exists($fname)) {
 						unlink($fname);
 					}
@@ -152,25 +149,33 @@ class Sync
 					$target = $this->sftp->exec("php -r 'echo readlink(\"{$this->opts->remotePath}/$fname\");'");
 					symlink($target, $fname);
 				}
+			}
+			elseif ($file['ftype'] === 'd') {
+				$directories[] = $file;
+			}
+			else {
+				$report->out(PHP_EOL . 'WARNING: Inknown file type: ' . $file['ftype']);
+			}
 
-				++$i;
+			if ($i % 23 == 0) {
+				$report->status($i . $of_ct);
 			}
 		}
 
-		foreach ($files as $file) {
-			if ($file['ftype'] === 'd') {
-				$report->status($i++ . $of_ct);
+		/**
+		 * Directories must be done after placing files so that mod times aren't changed.
+		 */
+		foreach ($directories as $d) {
+			$dname = $d['fname'];
 
-				$dname = $file['fname'];
-
-				if (!file_exists($dname)) {
-					mkdir($dname, 0755, true);
-				}
-
-				touch($dname, $file['modts']);
+			if (!file_exists($dname)) {
+				mkdir($dname, 0755, true);
 			}
+
+			touch($dname, $d['modts']);
 		}
 
+		$report->status($i . $of_ct);
 		$report->out('');
 	}
 }

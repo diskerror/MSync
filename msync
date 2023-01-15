@@ -23,12 +23,12 @@ require 'vendor/diskerror/autoload/autoload.php';
 const DATA_DIR      = '.msync/';
 const MANIFEST_FILE = DATA_DIR . 'manifest.db';
 const CONFIG_FILE   = DATA_DIR . 'config.ini';
-const TEMP_DIR      = DATA_DIR . 'temp/';
+const TEMP_DIR      = DATA_DIR . 'conflict/';
 
 const USAGE = <<<'DEFINE_USAGE'
 Usage:
 	msync -H | --help
-	msync [option [option [...]]] init | check | pull | push | resolve
+	msync [option [option [...]]] init | pull | push | resolve
 
 DEFINE_USAGE;
 
@@ -66,7 +66,7 @@ try {
 				}
 
 				if (substr(strtolower($cont), 0, 1) !== 'y') {
-					$report->out(STDOUT, 'Canceled.' . PHP_EOL);
+					$report->out('Canceled.' . PHP_EOL);
 					break;
 				}
 			}
@@ -87,15 +87,33 @@ try {
 			break;
 
 
-		case 'check':
+		case 'pull':
 			if (!file_exists($manifestFullPath)) {
 				throw new NotInitializedException();
 			}
 
 			$sync        = new Sync($opts);
-			$remoteArray = $sync->getRemoteList();
-			$devArray    = $sync->getDevList();
-			//  TODO: finish
+//			$remoteArray = $sync->getRemoteList();
+//			$devArray    = $sync->getDevList();
+			
+			//  Build list of remote files that have changed.
+		
+			//  Build list of local files that have changed.
+
+			//  Copy files from remote directory...
+			//      If the local file has changed then
+			//          put it in the conflict directory.
+			//      Else,
+			//          copy it in place.
+		
+			//  Write file stats into the manifest.
+		
+			//  If there are file in conflict then
+			//      launch user's preferred "diff" engine to compare files.
+			//      Or print paths to directories to compare.
+			
+			//  TODO: finnish this
+
 			break;
 
 
@@ -105,118 +123,44 @@ try {
 			}
 
 			$sync = new Sync($opts);
+			
+			//  Check conflict directory for files.
+			//  If any,
+			//      abort push and advise user.
+
+			//  Build list of remote files that have changed.
+			//  If any,
+			//      abort push and advise user.
+
+			//  Build list of local files that have changed.
+		
+			//  Push changed files to remote directory.
+
+			//  Write file stats into the manifest.
+
 			//  TODO: finnish this
 			break;
-
-
-		case 'pull':
+			
+			
+		case 'resolve':
 			if (!file_exists($manifestFullPath)) {
 				throw new NotInitializedException();
 			}
 
-			$sync        = new Sync($opts);
-			$remoteArray = $sync->getRemoteList();
-			$devArray    = $sync->getDevList();
+			//  Delete file from conflict directory.
+		
 			//  TODO: finnish this
+		break;
 
-
-//			$fp = fopen('/Users/reid/Desktop/ct_remote.txt', 'wb');
-//			ftruncate($fp, 0);
-//			foreach ($remoteArray as $e) {
-//				fprintf($fp, "%s; size: %u\n",
-//					$e['name'], $e['size']);
-//			}
-//			fclose($fp);
-//
-//			$fp = fopen('/Users/reid/Desktop/ct_dev.txt', 'wb');
-//			ftruncate($fp, 0);
-//			foreach ($devArray as $e) {
-//				fprintf($fp, "%s; size: %u\n",
-//					$e['name'], $e['size']);
-//			}
-//			fclose($fp);
-//			return;
-
-
-			reset($remoteArray);
-			reset($devArray);
-
-			$re = current($remoteArray);
-			$de = current($devArray);
-
-			$onlyOnRemote = [];
-			$onlyOnDev    = [];
-			$timeDiffers  = [];
-			$sizeDiffers  = [];
-
-			do {
-				if ($re['fname'] < $de['fname']) {
-					$onlyOnRemote[] = $re;
-					//		printf("Only on remote: %s; size: %u; mod time: %s\n",
-					//			$re['fname'], $re['sizeb'], date('Y-m-d H:i:s', $re['modts']));
-					$re = next($remoteArray);
-					continue;
-				}
-				elseif ($re['fname'] > $de['fname']) {
-					$onlyOnDev[] = $de;
-					//		printf("Only in dev: %s; size: %u; mod time: %s\n",
-					//			$de['name'], $de['size'], date('Y-m-d H:i:s', $de['time']));
-					$de = next($devArray);
-					continue;
-				}
-				elseif ($re['modts'] !== $de['modts']) {
-					$timeDiffers[] = [
-						'file name'   => $de['fname'],
-						'dev time'    => $de['modts'],
-						'remote time' => $re['modts'],
-					];
-					//		printf("Different mod times: %s; dev mod time: %s; remote mod time: %s\n",
-					//			$de['fname'], date('Y-m-d H:i:s', $de['modts']), date('Y-m-d H:i:s', $re['modts']));
-				}
-				elseif ($re['size'] !== $de['size']) {
-					$sizeDiffers[] = [
-						'file name'   => $de['fname'],
-						'dev size'    => $de['sizeb'],
-						'remote size' => $re['sizeb'],
-					];
-					//		printf("DIFFERENT SIZES: %s; dev size: %u; remote size: %u\n",
-					//			$de['fname'], $de['sizeb'], $re['sizeb']);
-				}
-
-				$re = next($remoteArray);
-				$de = next($devArray);
-			} while ($re !== false && $de !== false);
-
-
-			printf("\nOnly on remote:\n");
-			foreach ($onlyOnRemote as $or) {
-				printf("%s\n", $or['fname']);
-			}
-
-			printf("\nOnly in dev:\n");
-			foreach ($onlyOnDev as $od) {
-				printf("%s\n", $od['fname']);
-			}
-
-			printf("\nTimes differ (later time):\n");
-			foreach ($timeDiffers as $td) {
-				printf("%s (%s)\n", $td['file name'], $td['dev time'] > $td['remote time'] ? 'dev' : 'remote');
-			}
-
-			printf("\nSizes differ:\n");
-			foreach ($sizeDiffers as $sd) {
-				printf("%s\n", $sd['file name']);
-			}
-			break;
-
+			
 		default:
 			fprintf(STDERR, USAGE);
-			exit(1);
+			$exitCode = 1;
 	}
 }
 catch (HelpException $e) {
 	fprintf(STDOUT, USAGE);
-	fprintf(STDOUT, file_get_contents('help_page.txt'));
+	fprintf(STDOUT, file_get_contents('help_screen.txt'));
 }
 catch (NotInitializedException $e) {
 	$r = new Report($opts->verbose);
