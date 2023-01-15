@@ -2,7 +2,7 @@
 
 namespace Model;
 
-use Model\Exceptions\HelpException;
+use Model\Exceptions\StopException;
 
 class Opts
 {
@@ -98,7 +98,7 @@ class Opts
 		);
 
 		if (array_key_exists('H', $opts) || array_key_exists('help', $opts)) {
-			throw new HelpException();
+			throw new StopException(USAGE . PHP_EOL . file_get_contents(__DIR__ . '/../help_screen.txt'));
 		}
 
 		if (array_key_exists('d', $opts)) {

@@ -2,10 +2,10 @@
 
 namespace Model;
 
-use Exception;
 use Laminas\Json\Exception\RuntimeException;
 use Laminas\Json\Json;
 use phpseclib3\Crypt\PublicKeyLoader;
+use phpseclib3\Exception\UnableToConnectException;
 use phpseclib3\Net\SFTP;
 
 /**
@@ -41,7 +41,7 @@ class Sync
 
 		$this->sftp = new SFTP($this->opts->host);
 		if (!$this->sftp->login($this->opts->user, $key)) {
-			throw new Exception('Login failed');
+			throw new UnableToConnectException('Login failed');
 		}
 
 		$this->sftp->enableDatePreservation();
@@ -80,14 +80,7 @@ class Sync
 		//	Remove text before first '[' or '{'.
 		$response = preg_replace('/^[^[{]*(.+)$/sAD', '$1', $response);
 
-		try {
-			$arr = Json::decode($response, JSON_OBJECT_AS_ARRAY);
-		}
-		catch (RuntimeException $e) {
-			throw new \RuntimeException('Json: ' . $e->getMessage(), $e->getCode(), $e);
-		}
-
-		return $arr;
+		return Json::decode($response, JSON_OBJECT_AS_ARRAY);
 	}
 
 	public function getDevList(): array

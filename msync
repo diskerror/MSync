@@ -9,8 +9,8 @@
  * connecting to a server running Debian 10.
  */
 
-use Model\Exceptions\HelpException;
-use Model\Exceptions\NotInitializedException;
+use Laminas\Json\Exception\ExceptionInterface;
+use Model\Exceptions\StopException;
 use Model\Manifest;
 use Model\Opts;
 use Model\Report;
@@ -25,12 +25,18 @@ const MANIFEST_FILE = DATA_DIR . 'manifest.db';
 const CONFIG_FILE   = DATA_DIR . 'config.ini';
 const TEMP_DIR      = DATA_DIR . 'conflict/';
 
-const USAGE = <<<'DEFINE_USAGE'
+const USAGE = <<<'NDOC'
 Usage:
 	msync -H | --help
 	msync [option [option [...]]] init | pull | push | resolve
 
-DEFINE_USAGE;
+NDOC;
+
+const NOT_INITIALIZED = <<<'NDOC'
+This is not an msync managed directory.
+Use ‘msync init’ to create local workspace.
+
+NDOC;
 
 $exitCode = 0;
 
@@ -38,13 +44,13 @@ $exitCode = 0;
 //	MAIN
 
 try {
-	$opts = new Opts(CONFIG_FILE);
-	
+	$opts   = new Opts(CONFIG_FILE);
+	$report = new Report($opts->verbose);
+
 	$manifestFullPath = $opts->localPath . '/' . MANIFEST_FILE;
 
 	if (!isset($argv[$opts->restIndex])) {
-		fprintf(STDERR, USAGE . PHP_EOL);
-		exit(1);
+		throw new UnexpectedValueException('Missing parameter.');
 	}
 
 	ini_set('memory_limit', '512M');
@@ -60,8 +66,8 @@ try {
 			if (file_exists($manifestFullPath)) {
 				$cont = 'no';   //  default reply
 				$report->scream('This is an msync managed directory!');
-				$report->scream('Do you wish to overwrite all working files? [y|N]:', false);
-				if ($rline = readline(' ')) {
+				$report->scream('Do you wish to overwrite all working files? [y|N]: ', false);
+				if ($rline = readline('')) {
 					$cont = $rline;
 				}
 
@@ -89,15 +95,15 @@ try {
 
 		case 'pull':
 			if (!file_exists($manifestFullPath)) {
-				throw new NotInitializedException();
+				throw new RuntimeException(NOT_INITIALIZED);
 			}
 
-			$sync        = new Sync($opts);
+			$sync = new Sync($opts);
 //			$remoteArray = $sync->getRemoteList();
 //			$devArray    = $sync->getDevList();
-			
+
 			//  Build list of remote files that have changed.
-		
+
 			//  Build list of local files that have changed.
 
 			//  Copy files from remote directory...
@@ -105,13 +111,13 @@ try {
 			//          put it in the conflict directory.
 			//      Else,
 			//          copy it in place.
-		
+
 			//  Write file stats into the manifest.
-		
+
 			//  If there are file in conflict then
 			//      launch user's preferred "diff" engine to compare files.
 			//      Or print paths to directories to compare.
-			
+
 			//  TODO: finnish this
 
 			break;
@@ -119,11 +125,11 @@ try {
 
 		case 'push':
 			if (!file_exists($manifestFullPath)) {
-				throw new NotInitializedException();
+				throw new RuntimeException(NOT_INITIALIZED);
 			}
 
 			$sync = new Sync($opts);
-			
+
 			//  Check conflict directory for files.
 			//  If any,
 			//      abort push and advise user.
@@ -133,48 +139,43 @@ try {
 			//      abort push and advise user.
 
 			//  Build list of local files that have changed.
-		
+
 			//  Push changed files to remote directory.
 
 			//  Write file stats into the manifest.
 
 			//  TODO: finnish this
 			break;
-			
-			
+
+
 		case 'resolve':
 			if (!file_exists($manifestFullPath)) {
-				throw new NotInitializedException();
+				throw new RuntimeException(NOT_INITIALIZED);
 			}
 
 			//  Delete file from conflict directory.
-		
-			//  TODO: finnish this
-		break;
 
-			
+			//  TODO: finnish this
+			break;
+
+
 		default:
-			fprintf(STDERR, USAGE);
-			$exitCode = 1;
+			throw new UnexpectedValueException('Unknown verb.');
 	}
 }
-catch (HelpException $e) {
-	fprintf(STDOUT, USAGE);
-	fprintf(STDOUT, file_get_contents('help_screen.txt'));
+catch (StopException $s) {
+	fprintf(STDOUT, $s);
 }
-catch (NotInitializedException $e) {
-	$r = new Report($opts->verbose);
-	$r->scream('This is not an msync managed directory.');
-	$r->scream('Use ‘msync init’ to create local workspace.');
-	$exitCode = 1;
+catch (ExceptionInterface $e) {
+	fprintf(STDERR, $e . PHP_EOL);
+	$exitCode = $e->getCode();
 }
 catch (RuntimeException $e) {
-	$r = new Report($opts->verbose);
-	$r->scream($e->getMessage());
+	fprintf(STDERR, $e->getMessage() . PHP_EOL . USAGE . PHP_EOL);
 	$exitCode = $e->getCode();
 }
 catch (Throwable $t) {
-	fprintf(STDERR, $t);
+	fprintf(STDERR, $t . PHP_EOL);
 	$exitCode = $t->getCode();
 }
 
