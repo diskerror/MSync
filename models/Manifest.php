@@ -10,10 +10,10 @@ class Manifest
 	protected SQLite3 $sqlite;
 	protected Opts    $opts;
 
-	public function __construct(string $manifestFile, Opts $opts)
+	public function __construct(Opts $opts)
 	{
 		$this->opts   = $opts;
-		$this->sqlite = new SQLite3($manifestFile);
+		$this->sqlite = new SQLite3($opts->manifestPath);
 
 		$this->sqlite->enableExceptions(true);
 		$this->sqlite->exec('PRAGMA encoding = \'UTF-8\'');
@@ -34,13 +34,10 @@ class Manifest
 
 	public function firstWrite(array $files)
 	{
-		$ct         = count($files);
-		$of_ct      = ' of ' . $ct;
-		$t          = $_SERVER['REQUEST_TIME'];
-
-		$values    = [];
-		for ($i = 0; $i < $ct; ++$i) {
-			$f        = $files[$i];
+		$t      = $_SERVER['REQUEST_TIME'];
+		$values = [];
+		
+		foreach ($files as $f) {
 			$fname    = SQLite3::escapeString($f['fname']);
 			$values[] = "('$fname', '{$f['ftype']}', {$f['sizeb']}, {$f['modts']}, X'{$f['hashval']}', $t, $t)";
 		}

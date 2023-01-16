@@ -1,5 +1,3 @@
-
-
 DESCRIPTION
 
 This program aids in the synchronizing of two changeable directories where
@@ -77,5 +75,4 @@ These will require explanation (soon).
 IGNORE_REGEX
 NEVER_HASH
 NO_PUSH_REGEX
-
 

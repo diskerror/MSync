@@ -5,12 +5,11 @@
  * Synchronize directories like rsync but with an additional manifest so that
  * changes on the remote system are caught before damage is done.
  *
- * Written using MacOS 13.1 Ventura for the local workstation and
+ * Written using macOS 13.1 Ventura for the local workstation and
  * connecting to a server running Debian 10.
  */
 
 use Laminas\Json\Exception\ExceptionInterface;
-use Model\Exceptions\StopException;
 use Model\Manifest;
 use Model\Opts;
 use Model\Report;
@@ -20,21 +19,10 @@ ini_set('error_reporting', E_ALL);
 
 require 'vendor/diskerror/autoload/autoload.php';
 
-const DATA_DIR      = '.msync/';
-const MANIFEST_FILE = DATA_DIR . 'manifest.db';
-const CONFIG_FILE   = DATA_DIR . 'config.ini';
-const TEMP_DIR      = DATA_DIR . 'conflict/';
-
 const USAGE = <<<'NDOC'
 Usage:
 	msync -H | --help
-	msync [option [option [...]]] init | pull | push | resolve
-
-NDOC;
-
-const NOT_INITIALIZED = <<<'NDOC'
-This is not an msync managed directory.
-Use ‘msync init’ to create local workspace.
+	msync [option [option [...]]] init | pull | push | resolve «path»
 
 NDOC;
 
@@ -44,29 +32,24 @@ $exitCode = 0;
 //	MAIN
 
 try {
-	$opts   = new Opts(CONFIG_FILE);
+	$opts   = new Opts($argv);
 	$report = new Report($opts->verbose);
-
-	$manifestFullPath = $opts->localPath . '/' . MANIFEST_FILE;
-
-	if (!isset($argv[$opts->restIndex])) {
-		throw new UnexpectedValueException('Missing parameter.');
-	}
 
 	ini_set('memory_limit', '512M');
 
-	if (!is_dir(DATA_DIR)) {
-		mkdir(DATA_DIR);
-	}
-
 	//  Do command verb.
 	switch ($argv[$opts->restIndex]) {
+		case 'help':
+			fprintf(STDOUT, USAGE . PHP_EOL);
+			fprintf(STDOUT, file_get_contents(__DIR__ . '/help_screen.txt'));
+			break;
+
+
 		case 'init':
-			$report = new Report($opts->verbose);
-			if (file_exists($manifestFullPath)) {
+			if (file_exists($opts->manifestPath)) {
 				$cont = 'no';   //  default reply
-				$report->scream('This is an msync managed directory!');
-				$report->scream('Do you wish to overwrite all working files? [y|N]: ', false);
+				$report->shout('This is an msync managed directory!');
+				$report->shout('Do you wish to overwrite all working files? [y|N]: ', false);
 				if ($rline = readline('')) {
 					$cont = $rline;
 				}
@@ -83,28 +66,26 @@ try {
 			$report->out('Retrieving remote file list.');
 			$remoteArray = $sync->getRemoteList();
 
-			$report->out('Pulling new or different files.');
+			$report->out('Pulling non-existent or files that differ.');
 			$sync->pullFiles($remoteArray);
 
 			$report->out('Writing file info to manifest.');
-			(new Manifest($manifestFullPath, $opts))->firstWrite($remoteArray);
+			(new Manifest($opts))->firstWrite($remoteArray);
 
 			$report->out('Initialization complete.');
 			break;
 
 
 		case 'pull':
-			if (!file_exists($manifestFullPath)) {
-				throw new RuntimeException(NOT_INITIALIZED);
-			}
+			$opts->assertManifest();
 
 			$sync = new Sync($opts);
 //			$remoteArray = $sync->getRemoteList();
 //			$devArray    = $sync->getDevList();
 
-			//  Build list of remote files that have changed.
+			//  Build list of remote files that have changed or are new.
 
-			//  Build list of local files that have changed.
+			//  Build list of local files that have changed or are new.
 
 			//  Copy files from remote directory...
 			//      If the local file has changed then
@@ -112,50 +93,69 @@ try {
 			//      Else,
 			//          copy it in place.
 
-			//  Write file stats into the manifest.
+			//  Write changed and new file stats into the manifest.
 
-			//  If there are file in conflict then
+			//  If there are files in conflict then
 			//      launch user's preferred "diff" engine to compare files.
 			//      Or print paths to directories to compare.
-
-			//  TODO: finnish this
 
 			break;
 
 
 		case 'push':
-			if (!file_exists($manifestFullPath)) {
-				throw new RuntimeException(NOT_INITIALIZED);
-			}
-
-			$sync = new Sync($opts);
+			$opts->assertManifest();
 
 			//  Check conflict directory for files.
-			//  If any,
-			//      abort push and advise user.
+			//  If any, abort push and advise user.
+			$rdi = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator($opts->conflictPath),
+				FilesystemIterator::SKIP_DOTS | FilesystemIterator::CURRENT_AS_FILEINFO
+			);
+			foreach ($rdi as $f) {
+				if ($f->getType === 'file') {
+					$report->shout('Files are still in conflict. Aborting.');
+					break 2;
+				}
+			}
 
 			//  Build list of remote files that have changed.
 			//  If any,
 			//      abort push and advise user.
 
-			//  Build list of local files that have changed.
+			//  Build list of local files that have changed or are new.
 
-			//  Push changed files to remote directory.
+			//  Push changed and new files to remote directory.
 
-			//  Write file stats into the manifest.
-
-			//  TODO: finnish this
+			//  Write changed and new file stats into the manifest.
 			break;
 
 
 		case 'resolve':
-			if (!file_exists($manifestFullPath)) {
-				throw new RuntimeException(NOT_INITIALIZED);
+			$opts->assertManifest();
+
+			if (!isset($argv[$opts->restIndex + 1])) {
+				throw new UnderflowException('Missing path to file.');
 			}
 
-			//  Delete file from conflict directory.
+			$file     = ltrim($argv[$opts->restIndex + 1]);
+			$fullPath = realpath($opts->conflictPath . '/' . $file);
 
-			//  TODO: finnish this
+			switch (true) {
+				case strpos($file, '..') !== false:
+					throw new UnexpectedValueException('Cannot point to file outside project.');
+
+				case $file[0] === '/':
+					throw new UnexpectedValueException('Parameter must be a relative path to file.');
+
+				case !file_exists($fullPath):
+					throw new UnexpectedValueException('File does not exist.');
+
+				case !is_file($fullPath):
+					throw new UnexpectedValueException('Not a regular file.');
+			}
+
+			unlink($fullPath);
+			$report->out('"' . $file . '" has been removed.');
 			break;
 
 
@@ -163,15 +163,13 @@ try {
 			throw new UnexpectedValueException('Unknown verb.');
 	}
 }
-catch (StopException $s) {
-	fprintf(STDOUT, $s);
-}
 catch (ExceptionInterface $e) {
 	fprintf(STDERR, $e . PHP_EOL);
 	$exitCode = $e->getCode();
 }
 catch (RuntimeException $e) {
-	fprintf(STDERR, $e->getMessage() . PHP_EOL . USAGE . PHP_EOL);
+	fprintf(STDERR, $e->getMessage() . PHP_EOL);
+	fprintf(STDERR, USAGE);
 	$exitCode = $e->getCode();
 }
 catch (Throwable $t) {

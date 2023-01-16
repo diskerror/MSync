@@ -2,10 +2,22 @@
 
 namespace Model;
 
-use Model\Exceptions\StopException;
+use RuntimeException;
+use UnexpectedValueException;
 
 class Opts
 {
+	const DATA_DIR      = '.msync/';
+	const MANIFEST_FILE = 'manifest.db';
+	const CONFIG_FILE   = 'config.ini';
+	const CONFLICT_DIR  = 'conflict/';
+
+	const NOT_INITIALIZED = <<<'NDOC'
+		This is not an msync managed directory.
+		Use ‘msync init’ to create local workspace.
+		
+		NDOC;
+
 	/**
 	 * Regex file transfer rules.
 	 */
@@ -18,21 +30,19 @@ class Opts
 	 */
 	protected string $host       = '192.168.1.77';
 	protected string $remotePath = '/var/www/html';
-	protected string $localPath  = '.';
+	protected string $localPath  = '.';    //	Becomes full path to local directory.
 	protected string $user       = '';
 	protected string $sshKeyPath = '';
 	protected string $password   = '';
-	protected bool   $verbose;
+	protected bool   $verbose    = true;
+
 	protected ?int   $restIndex;
+	protected string $dataDir = '';
 
-	public function __construct(string $configPath)
+	public function __construct(array &$argv)
 	{
-		if (!is_dir(DATA_DIR)) {
-			mkdir(DATA_DIR);
-		}
-
 		/**
-		 * Always ignore these entries:
+		 * Always ignore these entries (testing with SuiteCRM 7):
 		 *    top directory and directories above the current directory (., ..)
 		 *    any hidden file (starting with a dot)
 		 *    all log files, data files, uploaded business files
@@ -54,7 +64,7 @@ class Opts
 
 		/**
 		 * Don't hash these files because we will never edit them.
-		 * Any additional files will be pushed to remote directory.
+		 * Any additional files of these types will be pushed to remote directory.
 		 */
 		$this->NEVER_HASH = <<<'NDOC'
 			.*\.exe
@@ -66,7 +76,9 @@ class Opts
 			NDOC;
 
 		/**
+		 * These are separate as we need to pull them for testing.
 		 * Never push back files ending with tilde ~.
+		 * Never push back config*.php.
 		 * Never push back these directories.
 		 * Also, these never need hashing as we never change them.
 		 */
@@ -81,24 +93,20 @@ class Opts
 			/vendor/.*
 			HDOC;
 
-		//	Read settings from config file. They will overwrite corresponding variables.
-		if (file_exists($configPath)) {
-			foreach (parse_ini_file(CONFIG_FILE, false, INI_SCANNER_TYPED) as $k => $v) {
-				//	Can't set localPath from ini file.
-				if ($k !== 'localPath' && property_exists($this, $k)) {
-					$this->$k = $v;
-				}
-			}
-		}
-
 		$opts = getopt(
 			'd:Hh:p::u:v',
 			['directory:', 'help', 'host:', 'password::', 'username:', 'verbose'],
 			$this->restIndex
 		);
 
+		//	Stop early for “help” option.
 		if (array_key_exists('H', $opts) || array_key_exists('help', $opts)) {
-			throw new StopException(USAGE . PHP_EOL . file_get_contents(__DIR__ . '/../help_screen.txt'));
+			$argv[$this->restIndex] = 'help';
+			return;
+		}
+
+		if (!isset($argv[$this->restIndex])) {
+			throw new UnexpectedValueException('Missing parameter.');
 		}
 
 		if (array_key_exists('d', $opts)) {
@@ -108,6 +116,36 @@ class Opts
 			$this->localPath = ltrim($opts['directory']);
 		}
 
+		switch (true) {
+			case $this->localPath === '':
+			case $this->localPath === '.':
+				$this->localPath = getcwd();
+				break;
+
+			case substr($this->localPath, 0, 2) === '~/':
+				$this->localPath = $_SERVER['HOME'] . substr($this->localPath, 1);
+				break;
+
+			case $this->localPath[0] !== '/':
+				$this->localPath = getcwd() . '/' . $this->localPath;
+				break;
+		}
+
+		if (!file_exists($this->localPath)) {
+			throw new RuntimeException('Directory "' . $this->localPath . '" does not exist.');
+		}
+
+		//	Read settings from config file. They will overwrite corresponding variables.
+		if (file_exists(self::CONFIG_FILE)) {
+			foreach (parse_ini_file(self::CONFIG_FILE, false, INI_SCANNER_TYPED) as $k => $v) {
+				//	Can't set localPath from ini file.
+				if ($k !== 'localPath' && property_exists($this, $k)) {
+					$this->$k = $v;
+				}
+			}
+		}
+
+		//	CLI option always override INI file.
 		if (array_key_exists('h', $opts)) {
 			$this->host = trim($opts['h']);
 		}
@@ -143,14 +181,29 @@ class Opts
 
 		$this->verbose = array_key_exists('v', $opts) || array_key_exists('verbose', $opts);
 
-		if ($this->localPath[0] === '~') {
-			$this->localPath = $_SERVER['HOME'] . substr($this->localPath, 1);
+		$this->dataDir = $this->localPath . '/' . self::DATA_DIR;
+		if (!is_dir($this->dataDir)) {
+			mkdir($this->dataDir);
+		}
+	}
+
+	public function assertManifest()
+	{
+		if (!file_exists($this->manifestPath)) {
+			throw new RuntimeException(self::NOT_INITIALIZED);
 		}
 	}
 
 	public function __get($name)
 	{
+		switch ($name) {
+			case 'manifestPath':
+				return $this->dataDir . '/' . self::MANIFEST_FILE;
+
+			case 'conflictPath':
+				return $this->dataDir . '/' . self::CONFLICT_DIR;
+		}
+		
 		return $this->$name;
 	}
-
 }

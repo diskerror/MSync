@@ -20,9 +20,14 @@ class Report
 		}
 	}
 
-	public function scream(string $str, bool $nl = true)
+	public function shout(string $str, bool $nl = true)
 	{
 		fprintf(STDOUT, $str . ($nl ? PHP_EOL : ''));
+	}
+
+	public function scream(string $str, bool $nl = true)
+	{
+		fprintf(STDERR, $str . ($nl ? PHP_EOL : ''));
 	}
 
 	public function status(string $str)
