@@ -12,12 +12,6 @@ class Opts
 	const CONFIG_FILE   = 'config.ini';
 	const CONFLICT_DIR  = 'conflict/';
 
-	const NOT_INITIALIZED = <<<'NDOC'
-		This is not an msync managed directory.
-		Use ‘msync init’ to create local workspace.
-		
-		NDOC;
-
 	/**
 	 * Regex file transfer rules.
 	 */
@@ -38,9 +32,19 @@ class Opts
 
 	protected ?int   $restIndex;
 	protected string $dataDir = '';
+	protected array  $iniAllowed;
 
 	public function __construct(array &$argv)
 	{
+		/**
+		 * Protect these from being overwritten.
+		 */
+		$this->iniAllowed = get_class_vars(self::class);
+		unset($this->iniAllowed['localPath']);
+		unset($this->iniAllowed['restIndex']);
+		unset($this->iniAllowed['dataDir']);
+		unset($this->iniAllowed['iniAllowed']);
+
 		/**
 		 * Always ignore these entries (testing with SuiteCRM 7):
 		 *    top directory and directories above the current directory (., ..)
@@ -135,11 +139,11 @@ class Opts
 			throw new RuntimeException('Directory "' . $this->localPath . '" does not exist.');
 		}
 
+
 		//	Read settings from config file. They will overwrite corresponding variables.
 		if (file_exists(self::CONFIG_FILE)) {
 			foreach (parse_ini_file(self::CONFIG_FILE, false, INI_SCANNER_TYPED) as $k => $v) {
-				//	Can't set localPath from ini file.
-				if ($k !== 'localPath' && property_exists($this, $k)) {
+				if (array_key_exists($k, $this->iniAllowed)) {
 					$this->$k = $v;
 				}
 			}
@@ -187,13 +191,6 @@ class Opts
 		}
 	}
 
-	public function assertManifest()
-	{
-		if (!file_exists($this->manifestPath)) {
-			throw new RuntimeException(self::NOT_INITIALIZED);
-		}
-	}
-
 	public function __get($name)
 	{
 		switch ($name) {
@@ -203,7 +200,7 @@ class Opts
 			case 'conflictPath':
 				return $this->dataDir . '/' . self::CONFLICT_DIR;
 		}
-		
+
 		return $this->$name;
 	}
 }

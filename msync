@@ -26,6 +26,19 @@ Usage:
 
 NDOC;
 
+const NOT_INITIALIZED = <<<'NDOC'
+	This is not an msync managed directory.
+	Use ‘msync init’ to create local workspace.
+	
+	NDOC;
+
+function assertFileExists(string $file, string $message = '')
+{
+	if (!file_exists($file)) {
+		throw new RuntimeException($message == '' ? '"' . $file . '" does not exist.' : $message);
+	}
+}
+
 $exitCode = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,20 +83,23 @@ try {
 			$sync->pullFiles($remoteArray);
 
 			$report->out('Writing file info to manifest.');
-			(new Manifest($opts))->firstWrite($remoteArray);
+			(new Manifest($opts))->insertManyIntoManifest($remoteArray);
 
 			$report->out('Initialization complete.');
 			break;
 
 
 		case 'pull':
-			$opts->assertManifest();
-
-			$sync = new Sync($opts);
-//			$remoteArray = $sync->getRemoteList();
-//			$devArray    = $sync->getDevList();
+			assertFileExists($opts->manifestPath, NOT_INITIALIZED);
 
 			//  Build list of remote files that have changed or are new.
+			$report->out('Opening connection to remote server.');
+			$sync     = new Sync($opts);
+			$manifest = new Manifest($opts);
+			$manifest->addTempDb();
+
+			$report->out('Retrieving remote file list.');
+			$manifest->insertManyIntoTemp($sync->getRemoteList());
 
 			//  Build list of local files that have changed or are new.
 
@@ -103,7 +119,7 @@ try {
 
 
 		case 'push':
-			$opts->assertManifest();
+			assertFileExists($opts->manifestPath, NOT_INITIALIZED);
 
 			//  Check conflict directory for files.
 			//  If any, abort push and advise user.
@@ -118,9 +134,15 @@ try {
 				}
 			}
 
-			//  Build list of remote files that have changed.
-			//  If any,
-			//      abort push and advise user.
+			//  Build list of remote files that have changed or are new.
+			//  If any, abort push and advise user.
+			$report->out('Opening connection to remote server.');
+			$sync     = new Sync($opts);
+			$manifest = new Manifest($opts);
+			$manifest->addTempDb();
+
+			$report->out('Retrieving remote file list.');
+			$manifest->insertManyIntoTemp($sync->getRemoteList());
 
 			//  Build list of local files that have changed or are new.
 
@@ -131,31 +153,32 @@ try {
 
 
 		case 'resolve':
-			$opts->assertManifest();
+			assertFileExists($opts->manifestPath, NOT_INITIALIZED);
 
 			if (!isset($argv[$opts->restIndex + 1])) {
 				throw new UnderflowException('Missing path to file.');
 			}
 
-			$file     = ltrim($argv[$opts->restIndex + 1]);
-			$fullPath = realpath($opts->conflictPath . '/' . $file);
+			$relativePath = ltrim($argv[$opts->restIndex + 1]);
+			$fullPath     = realpath($opts->conflictPath . '/' . $relativePath);
 
-			switch (true) {
-				case strpos($file, '..') !== false:
+			//  Written as assertions.
+			switch (false){
+				case (strpos($relativePath, '..') === false):
 					throw new UnexpectedValueException('Cannot point to file outside project.');
 
-				case $file[0] === '/':
+				case ($relativePath[0] !== '/'):
 					throw new UnexpectedValueException('Parameter must be a relative path to file.');
-
-				case !file_exists($fullPath):
-					throw new UnexpectedValueException('File does not exist.');
-
-				case !is_file($fullPath):
-					throw new UnexpectedValueException('Not a regular file.');
+					
+				case file_exists($fullPath):
+					throw new UnexpectedValueException('File has been resolved or does not exist.');
+					
+				case is_file($fullPath):
+					throw new UnexpectedValueException('Parameter must be a relative path to file.');
 			}
 
 			unlink($fullPath);
-			$report->out('"' . $file . '" has been removed.');
+			$report->out('"' . $relativePath . '" has been removed.');
 			break;
 
 
