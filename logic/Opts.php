@@ -3,6 +3,7 @@
 namespace Logic;
 
 use RuntimeException;
+use UnderflowException;
 use UnexpectedValueException;
 
 class Opts
@@ -41,6 +42,7 @@ class Opts
 	protected array  $iniAllowed;
 
 	protected string $verb;
+	protected string $resolvePath;
 
 	public function __construct(array &$argv)
 	{
@@ -79,7 +81,7 @@ class Opts
 		 * Don't hash these files because we will (probably) never edit them.
 		 * Any additional files of these types will be pushed to remote directory.
 		 * These are separate from NO_PUSH_REGEX because adds or changes to these
-		 * 		will need to be pushed.
+		 *        will need to be pushed.
 		 */
 		$this->NEVER_HASH = <<<'NDOC'
 			.*\.gif
@@ -116,15 +118,20 @@ class Opts
 
 		//	Stop early for “help” option.
 		if (array_key_exists('H', $opts) || array_key_exists('help', $opts)) {
-			$argv[$this->restIndex] = 'help';
-			return;
+			throw new HelpException();
 		}
 
 		if (!isset($argv[$this->restIndex])) {
 			throw new UnexpectedValueException('Missing verb or other parameter.');
 		}
-
 		$this->verb = $argv[$this->restIndex];
+
+		if ($this->verb === 'resolve') {
+			if (!isset($argv[$this->restIndex + 1])) {
+				throw new UnderflowException('Missing path to file.');
+			}
+			$this->resolvePath = $argv[$this->restIndex + 1];
+		}
 
 		if (array_key_exists('d', $opts)) {
 			$this->localPath = ltrim($opts['d']);
