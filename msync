@@ -22,7 +22,7 @@ require 'vendor/diskerror/autoload/autoload.php';
 const USAGE = <<<'NDOC'
 Usage:
 	msync -H | --help
-	msync [option [option [...]]] init | pull | push | resolve «path»
+	msync [option [option [...]]] init | pull | push | resolve «relative path»
 
 NDOC;
 
@@ -51,7 +51,7 @@ try {
 	ini_set('memory_limit', '512M');
 
 	//  Do command verb.
-	switch ($argv[$opts->restIndex]) {
+	switch ($opts->verb) {
 		case 'help':
 			fprintf(STDOUT, USAGE . PHP_EOL);
 			fprintf(STDOUT, file_get_contents(__DIR__ . '/help_screen.txt'));
@@ -77,13 +77,13 @@ try {
 			$sync = new Sync($opts);
 
 			$report->out('Retrieving remote file list.');
-			$remoteArray = $sync->getRemoteList();
+			$remoteList = $sync->getRemoteList();
 
 			$report->out('Pulling non-existent or files that differ.');
-			$sync->pullFiles($remoteArray);
+			$sync->pullFiles($remoteList);
 
 			$report->out('Writing file info to manifest.');
-			(new Manifest($opts))->insertManyIntoManifest($remoteArray);
+			(new Manifest($opts->manifestPath))->write($remoteList);
 
 			$report->out('Initialization complete.');
 			break;
@@ -95,31 +95,66 @@ try {
 			//  Build list of remote files that have changed or are new.
 			$report->out('Opening connection to remote server.');
 			$sync     = new Sync($opts);
-			$manifest = new Manifest($opts);
-			$manifest->addTempDb();
+			$manifest = new Manifest($opts->manifestPath);
 
 			$report->out('Retrieving remote file list.');
-			$manifest->insertManyIntoTemp($sync->getRemoteList());
+			$remoteList = $sync->getRemoteList();
 
-			//  Build list of local files that have changed or are new.
+			$report->out('Finding remote files that have changed.');
+			$remoteChanged = $manifest->getChanged($remoteList);
+
+			if (count($remoteChanged) === 0) {
+				$report->shout('Nothing to do.');
+				break;
+			}
+
+			//  Build list of local files that have changed.
+			$report->out('Retrieving local files that have changed.');
+			$localChanged = $manifest->getChanged($sync->getLocalList());
 
 			//  Copy files from remote directory...
 			//      If the local file has changed then
 			//          put it in the conflict directory.
 			//      Else,
 			//          copy it in place.
+			$conflicted = false;
+			foreach ($remoteChanged as $rChangedFname => $rChangedInfo) {
+				if (isset($localChanged[$rChangedFname]) && ($rChangedInfo['ftype'] === 'f')) {
+					//  If a local file is changing from a link to a regular file then
+					//      first delete the link or data will write to the wrong place.
+					if (is_link($localChanged[$rChangedFname])) {
+						unlink($rChangedFname);
+					}
+
+					$sync->pullToConflict($rChangedFname, $rChangedInfo);
+					$conflicted = true;
+				}
+				else {
+					$sync->pullFile($rChangedFname, $rChangedInfo);
+				}
+			}
 
 			//  Write changed and new file stats into the manifest.
+			$manifest->update($remoteChanged);
 
 			//  If there are files in conflict then
 			//      launch user's preferred "diff" engine to compare files.
 			//      Or print paths to directories to compare.
-
+			if ($conflicted) {
+				exec('phpstorm diff "' . $opts->localPath . '" "' . $opts->conflictPath . '"');
+			}
+			else {
+				$report->out('No conflicts.');
+			}
 			break;
 
 
 		case 'push':
 			assertFileExists($opts->manifestPath, NOT_INITIALIZED);
+			
+			if(!file_exists($opts->conflictPath) || !is_dir($opts->conflictPath)){
+				mkdir($opts->conflictPath, 0755, true);
+			}
 
 			//  Check conflict directory for files.
 			//  If any, abort push and advise user.
@@ -128,7 +163,7 @@ try {
 				FilesystemIterator::SKIP_DOTS | FilesystemIterator::CURRENT_AS_FILEINFO
 			);
 			foreach ($rdi as $f) {
-				if ($f->getType === 'file') {
+				if ($f->getType() === 'file') {
 					$report->shout('Files are still in conflict. Aborting.');
 					break 2;
 				}
@@ -138,17 +173,34 @@ try {
 			//  If any, abort push and advise user.
 			$report->out('Opening connection to remote server.');
 			$sync     = new Sync($opts);
-			$manifest = new Manifest($opts);
-			$manifest->addTempDb();
+			$manifest = new Manifest($opts->manifestPath);
 
 			$report->out('Retrieving remote file list.');
-			$manifest->insertManyIntoTemp($sync->getRemoteList());
+			$remoteList = $sync->getRemoteList();
+
+			$report->out('Finding remote files that have changed.');
+			$remoteChanged = $manifest->getChanged($sync->getRemoteList());
+
+			if (count($remoteChanged) > 0) {
+				$report->shout('There are changed files in the remote directory.');
+				$report->shout('Perform a "pull" and check changes. Aborting.');
+				break;
+			}
 
 			//  Build list of local files that have changed or are new.
+			$report->out('Retrieving local files that have changed or are new.');
+			$localChanged = $manifest->getChanged($sync->getLocalList());
+
+			if (count($localChanged) === 0) {
+				$report->out('Nothing to do.');
+				break;
+			}
 
 			//  Push changed and new files to remote directory.
+			$sync->pushFiles($localChanged, $remoteList);
 
 			//  Write changed and new file stats into the manifest.
+			$manifest->update($localChanged);
 			break;
 
 
@@ -163,18 +215,18 @@ try {
 			$fullPath     = realpath($opts->conflictPath . '/' . $relativePath);
 
 			//  Written as assertions.
-			switch (false){
+			switch (false) {
 				case (strpos($relativePath, '..') === false):
 					throw new UnexpectedValueException('Cannot point to file outside project.');
 
 				case ($relativePath[0] !== '/'):
 					throw new UnexpectedValueException('Parameter must be a relative path to file.');
-					
+
 				case file_exists($fullPath):
 					throw new UnexpectedValueException('File has been resolved or does not exist.');
-					
+
 				case is_file($fullPath):
-					throw new UnexpectedValueException('Parameter must be a relative path to file.');
+					throw new UnexpectedValueException('Parameter must be a relative path to a regular file.');
 			}
 
 			unlink($fullPath);

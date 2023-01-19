@@ -18,25 +18,25 @@ would cause unpredictable behaviour.
 VERBS
 
 	init:
-		Copies remote directory into the current or specified directory. Only
-		new or changed files are copied. Nothing is deleted.
+		Copies remote directory into the current or specified directory.
+		Only new or changed files are copied. Nothing is deleted.
 
 	pull:
-		Pull new files from remote directory. If a file has been changed local-
-		ly then the changed file will be placed into a temporary directory for
-		the user to check and merge changes and a conflict will be recorded for
-		that file.
+		Pull new files from remote directory. If a file has been changed
+		locally then the changed file will be placed into a temporary
+		directory for the user to check and merge changes and a conflict
+		will be recorded for that file.
 
 	push:
-		Push changed files to remote directory. If any file in the remote
-		directory has changed since 'check' was last run the file conflict has
-		not been resolved then no files are copied and a warning message is
-		displayed.
+		Push changed files to remote directory. If any file in the re-
+		mote directory has changed since 'check' was last run the file
+		conflict has not been resolved then no files are copied and a
+		warning message is displayed.
 
 	resolve:
-		Removes conflict mark from file. The local file will now overwrite the
-		same file in the remote directory during the next push. This verb re-
-		quires a relative path to file.
+		Removes conflict mark from file. The local file will now over-
+		write the same file in the remote directory during the next
+		push. This verb requires a relative path to file.
 
 
 OPTIONS:
@@ -45,17 +45,17 @@ OPTIONS:
 		This screen.
 
 	-d, --directory
-		Specify the local working directory instead of the current working
-		directory.
+		Specify the local working directory instead of the current work-
+		ing directory.
 
 	-h, --host
-		Remote host name or IP address. This will override the setting in the
-		config file.
+		Remote host name or IP address. This will override the setting
+		in the config file.
 
 	-p, --password
 		[not working]
-		Specify a password to log into the remote system. If there is no pass-
-		word then the user's ssh key, "~/.ssh/id_rsa" is used.
+		Specify a password to log into the remote system. If there is no
+		password then the user's ssh key, "~/.ssh/id_rsa" is used.
 
 	-u, --username
 		Overrides the username set in the config file. 

@@ -7,10 +7,16 @@ use UnexpectedValueException;
 
 class Opts
 {
-	const DATA_DIR      = '.msync/';
-	const MANIFEST_FILE = 'manifest.db';
-	const CONFIG_FILE   = 'config.ini';
-	const CONFLICT_DIR  = 'conflict/';
+	public const DATA_DIR      = '.msync/';
+	public const MANIFEST_FILE = 'manifest.json';
+	public const CONFIG_FILE   = 'config.ini';
+	public const CONFLICT_DIR  = 'conflict/';
+
+	/**
+	 * This algorithm seems to be the best trade-off between size (uniqueness),
+	 * speed, and cross-platform availability. tiger128,3? sha1? md4?
+	 */
+	public const HASH_ALGO = 'md4';
 
 	/**
 	 * Regex file transfer rules.
@@ -33,6 +39,8 @@ class Opts
 	protected ?int   $restIndex;
 	protected string $dataDir = '';
 	protected array  $iniAllowed;
+
+	protected string $verb;
 
 	public function __construct(array &$argv)
 	{
@@ -110,8 +118,10 @@ class Opts
 		}
 
 		if (!isset($argv[$this->restIndex])) {
-			throw new UnexpectedValueException('Missing parameter.');
+			throw new UnexpectedValueException('Missing verb or other parameter.');
 		}
+
+		$this->verb = $argv[$this->restIndex];
 
 		if (array_key_exists('d', $opts)) {
 			$this->localPath = ltrim($opts['d']);
@@ -195,12 +205,22 @@ class Opts
 	{
 		switch ($name) {
 			case 'manifestPath':
-				return $this->dataDir . '/' . self::MANIFEST_FILE;
+				return $this->dataDir . self::MANIFEST_FILE;
 
 			case 'conflictPath':
-				return $this->dataDir . '/' . self::CONFLICT_DIR;
+				return $this->dataDir . self::CONFLICT_DIR;
 		}
 
 		return $this->$name;
 	}
+
+	public static function heredocToRegex(...$strs): string
+	{
+		foreach ($strs as &$s) {
+			$s = trim($s);
+		}
+
+		return '@^(?:' . strtr(implode('|', $strs), "\n", '|') . ')$@';
+	}
+
 }
