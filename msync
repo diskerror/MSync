@@ -10,10 +10,10 @@
  */
 
 use Laminas\Json\Exception\ExceptionInterface;
-use Model\Manifest;
-use Model\Opts;
-use Model\Report;
-use Model\Sync;
+use Logic\Manifest;
+use Logic\Opts;
+use Logic\Report;
+use Logic\Sync;
 
 ini_set('error_reporting', E_ALL);
 
@@ -47,7 +47,7 @@ $exitCode = 0;
 try {
 	$opts   = new Opts($argv);
 	$report = new Report($opts->verbose);
-
+	
 	ini_set('memory_limit', '512M');
 
 	//  Do command verb.

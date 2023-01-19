@@ -1,6 +1,6 @@
 <?php
 
-namespace Model;
+namespace Logic;
 
 use RuntimeException;
 use UnexpectedValueException;
@@ -47,7 +47,7 @@ class Opts
 		/**
 		 * Protect these from being overwritten.
 		 */
-		$this->iniAllowed = get_class_vars(self::class);
+		$this->iniAllowed = get_object_vars($this);
 		unset($this->iniAllowed['localPath']);
 		unset($this->iniAllowed['restIndex']);
 		unset($this->iniAllowed['dataDir']);
@@ -72,14 +72,16 @@ class Opts
 			.*/IMPORT_[^/]+\d
 			/sugarcrm_old\.sql
 			/upload[^/]+/.*
+			.*/deleted/.*
 			NDOC;
 
 		/**
-		 * Don't hash these files because we will never edit them.
+		 * Don't hash these files because we will (probably) never edit them.
 		 * Any additional files of these types will be pushed to remote directory.
+		 * These are separate from NO_PUSH_REGEX because adds or changes to these
+		 * 		will need to be pushed.
 		 */
 		$this->NEVER_HASH = <<<'NDOC'
-			.*\.exe
 			.*\.gif
 			.*\.ico
 			.*\.jpg
@@ -88,13 +90,14 @@ class Opts
 			NDOC;
 
 		/**
-		 * These are separate as we need to pull them for testing.
+		 * These are separate as we need to pull them for debugging.
 		 * Never push back files ending with tilde ~.
 		 * Never push back config*.php.
-		 * Never push back these directories.
+		 * Never push back listed directories.
 		 * Also, these never need hashing as we never change them.
 		 */
-		$this->NO_PUSH_REGEX = <<<HDOC
+		$this->NO_PUSH_REGEX = <<<'NDOC'
+			.*\.exe
 			.*~
 			/cache/.*
 			/config.*\.php
@@ -103,7 +106,7 @@ class Opts
 			/silentUpgrade*.php
 			/upload.*
 			/vendor/.*
-			HDOC;
+			NDOC;
 
 		$opts = getopt(
 			'd:Hh:p::u:v',
@@ -214,7 +217,7 @@ class Opts
 		return $this->$name;
 	}
 
-	public static function heredocToRegex(...$strs): string
+	public static function nowdocToRegex(...$strs): string
 	{
 		foreach ($strs as &$s) {
 			$s = trim($s);

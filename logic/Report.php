@@ -1,6 +1,6 @@
 <?php
 
-namespace Model;
+namespace Logic;
 
 class Report
 {
@@ -22,7 +22,9 @@ class Report
 
 	public function shout(string $str, bool $nl = true)
 	{
-		fprintf(STDOUT, $str . ($nl ? PHP_EOL : ''));
+		if (!$this->beQuiet) {
+			fprintf(STDOUT, $str . ($nl ? PHP_EOL : ''));
+		}
 	}
 
 	public function scream(string $str, bool $nl = true)

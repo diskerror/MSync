@@ -1,9 +1,8 @@
 <?php
 
-namespace Model;
+namespace Logic;
 
 use Laminas\Json\Json;
-use RuntimeException;
 
 /**
  * Schema.
@@ -55,16 +54,18 @@ class Manifest
 		$diffs = [];
 		foreach ($newList as $newFname => $newInfo) {
 			if (
-				!array_key_exists($newFname, $lastSync) ||
-				(
-					($newInfo['hashval'] === '' || $lastSync[$newFname]['hashval'] === '') &&
+				$newInfo['ftype'] === 'f' && (
+					!array_key_exists($newFname, $lastSync) ||
 					(
-						$newInfo['ftype'] !== $lastSync[$newFname]['ftype'] ||
-						$newInfo['sizeb'] !== $lastSync[$newFname]['sizeb'] ||
-						$newInfo['modts'] !== $lastSync[$newFname]['modts']
-					)
-				) ||
-				$newInfo['hashval'] !== $lastSync[$newFname]['hashval']
+						($newInfo['hashval'] === '' || $lastSync[$newFname]['hashval'] === '') &&
+						(
+							$newInfo['ftype'] !== $lastSync[$newFname]['ftype'] ||
+							$newInfo['sizeb'] !== $lastSync[$newFname]['sizeb'] ||
+							$newInfo['modts'] !== $lastSync[$newFname]['modts']
+						)
+					) ||
+					$newInfo['hashval'] !== $lastSync[$newFname]['hashval']
+				)
 			) {
 				$diffs[$newFname] = $newInfo;
 			}

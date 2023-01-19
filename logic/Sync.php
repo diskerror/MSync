@@ -1,6 +1,6 @@
 <?php
 
-namespace Model;
+namespace Logic;
 
 use Laminas\Json\Json;
 use phpseclib3\Crypt\PublicKeyLoader;
@@ -27,9 +27,7 @@ class Sync
 	{
 		$this->opts = $opts;
 
-		if ($this->opts->localPath !== getcwd()) {
-			chdir($this->opts->localPath);
-		}
+		chdir($this->opts->localPath);
 
 		$key = PublicKeyLoader::load(file_get_contents($this->opts->sshKeyPath));
 
@@ -38,7 +36,6 @@ class Sync
 			throw new UnableToConnectException('Login failed');
 		}
 
-		$this->sftp->enableDatePreservation();
 		$this->sftp->chdir($this->opts->remotePath);
 	}
 
@@ -53,22 +50,22 @@ class Sync
 			[
 				'"' . $this->opts->remotePath . '"',
 				strlen($this->opts->remotePath),
-				'"' . Opts::heredocToRegex($this->opts->IGNORE_REGEX) . '"',
-				'"' . Opts::heredocToRegex($this->opts->NO_PUSH_REGEX) . '"',
+				'"' . Opts::nowdocToRegex($this->opts->IGNORE_REGEX) . '"',
+				'"' . Opts::nowdocToRegex($this->opts->NO_PUSH_REGEX) . '"',
 				'"' . Opts::HASH_ALGO . '"',
 			],
 			$cmd
 		);
 
 
-		$cmd .= ' echo json_encode($rtval);';	//	New line provided by echo '$cmd' below
+		$cmd .= ' echo json_encode($rtval);';    //	New line provided by echo '$cmd' below
 
 		$response = $this->sftp->exec("echo '$cmd' | php -a");
 
 		//	Remove text before first '[' or '{'.
 		$response = preg_replace('/^[^[{]*(.+)$/sAD', '$1', $response);
-		
-		if($response==''){
+
+		if ($response == '') {
 			throw new UnexpectedValueException('Blank response from remote.');
 		}
 
@@ -79,8 +76,8 @@ class Sync
 	{
 		$path        = $this->opts->localPath;
 		$plength     = strlen($this->opts->localPath);
-		$regexIgnore = Opts::heredocToRegex($this->opts->IGNORE_REGEX);
-		$regexNoHash = Opts::heredocToRegex($this->opts->NO_PUSH_REGEX);
+		$regexIgnore = Opts::nowdocToRegex($this->opts->IGNORE_REGEX);
+		$regexNoHash = Opts::nowdocToRegex($this->opts->NO_PUSH_REGEX);
 		$hashAlgo    = Opts::HASH_ALGO;
 
 		require 'find.php';
@@ -90,6 +87,9 @@ class Sync
 
 	public function pullFiles(array $files): void
 	{
+		//	Preserve mod time only for initial pull.
+		$this->sftp->enableDatePreservation();
+
 		$report = new Report($this->opts->verbose);
 		$i      = 0;
 		$of_ct  = ' of ' . count($files);
@@ -171,7 +171,7 @@ class Sync
 
 		switch ($info['ftype']) {
 			case 'f':
-				$this->pullRegularFile($fname, $info['fname'], $fname);
+				$this->pullRegularFile($fname, $info, $fname);
 				return true;
 
 			case 'l':
@@ -190,15 +190,15 @@ class Sync
 
 	public function pullToConflict(string $fname, array $info)
 	{
+		if ($info['ftype'] !== 'f') {
+			throw new UnexpectedValueException('Only regular file can be copied to the conflict directory.');
+		}
+
 		$this->pullRegularFile($fname, $info, $this->opts->conflictPath . '/' . $fname);
 	}
 
 	public function pullRegularFile(string $remoteFname, array $remoteInfo, string $localFname): void
 	{
-		if ($remoteInfo['ftype'] !== 'f') {
-			throw new UnexpectedValueException('Only regular file can be copied to the conflict directory.');
-		}
-
 		$localDname = dirname($localFname);
 		if (!file_exists($localDname)) {
 			mkdir($localDname, 0755, true);
@@ -220,13 +220,13 @@ class Sync
 			$this->sftp->get($remoteFname, $localFname);
 		}
 	}
-	
-	public function pushFiles(array $filesToPush, array $remoteList):void{
+
+	public function pushFiles(array $filesToPush, array $remoteList): void
+	{
 		$report = new Report($this->opts->verbose);
 		$i      = 0;
 		$of_ct  = ' of ' . count($filesToPush);
 
-		$directories = [];
 		foreach ($filesToPush as $pushFname => $pushInfo) {
 			++$i;
 			$dname = dirname($pushFname);
@@ -237,56 +237,44 @@ class Sync
 
 			if ($pushInfo['ftype'] === 'f') {
 				/**
-				 * Copy the file to here when:
+				 * Copy the file to remote when:
 				 *        it doesn't exist remotely
 				 *        it was not hashed but sizes differ or mod times differ
 				 *        it was hashed and the hashes differ
 				 */
 				if (!isset($remoteList[$pushFname]) ||
 					($pushInfo['hashval'] === '' ?
-						($pushInfo['sizeb'] != $remoteList[$pushFname]['sizeb'] || $pushInfo['modts'] != $remoteList[$pushFname]['modts']) :
+						(
+							$pushInfo['sizeb'] != $remoteList[$pushFname]['sizeb'] ||
+							$pushInfo['modts'] != $remoteList[$pushFname]['modts']
+						) :
 						$pushInfo['hashval'] !== $remoteList[$pushFname]['hashval']
 					)
 				) {
 					$this->sftp->put($pushFname, $pushFname, SFTP::SOURCE_LOCAL_FILE);
+					$this->sftp->exec('sudo -u reid touch export.php');
 				}
-			}///////////////////////////////////////////////////////////////////////////////////////////
+			}
 			elseif ($pushInfo['ftype'] === 'l') {
+				if (isset($remoteList[$pushFname])) {
+					$this->sftp->delete($pushFname);
+				}
+
 				/**
 				 * Copy the file to remote directory when:
 				 *        it doesn't exist remotely
 				 *        it is not a symbolic link
 				 */
-				if (!file_exists($pushFname) || !is_link($pushFname)) {
-					if (file_exists($pushFname)) {
-						unlink($pushFname);
-					}
-
-					$target = $this->sftp->exec("php -r 'echo readlink(\"{$this->opts->remotePath}/$pushFname\");'");
-					symlink($target, $pushFname);
-				}
+				$target = readlink($pushFname);
+				$this->sftp->exec('ln -fs "' . $pushFname . '" "' . $target . '"');
 			}
-			elseif ($pushInfo['ftype'] === 'd') {
-				$directories[$pushFname] = $pushInfo;
-			}
-			else {
+			elseif ($pushInfo['ftype'] !== 'd') {
 				$report->out(PHP_EOL . 'WARNING: Inknown file type: ' . $pushInfo['ftype']);
 			}
 
 			if ($i % 23 == 0) {
 				$report->status($i . $of_ct);
 			}
-		}
-
-		/**
-		 * Directories must be done after placing files so that mod times aren't changed.
-		 */
-		foreach ($directories as $dname => $dinfo) {
-			if (!file_exists($dname)) {
-				mkdir($dname, 0755, true);
-			}
-
-			touch($dname, $dinfo['modts']);
 		}
 
 		$report->status($i . $of_ct);
