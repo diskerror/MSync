@@ -19,7 +19,7 @@ require 'vendor/diskerror/autoload/autoload.php';
 const USAGE = <<<'NDOC'
 Usage:
 	msync -H | --help
-	msync [option [option [...]]] init | pull | push | resolve «relative path»
+	msync [options] init | pull | push | resolve «relative path»
 
 NDOC;
 

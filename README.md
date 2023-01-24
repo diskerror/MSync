@@ -8,7 +8,7 @@ MSync performs the same as simple usage of `rsync` but adds a manifest file. Tha
 
 There are three different regex strings generated from the users preferences. One is used to block files from upload and download. This is intended to prevent MSync from seeing business data files at all such as PDF, MS Word documents, and log files stored within the web-root. The second is used to prevent hashing of the files. The default values refer to a number of graphics file formats. The third regex string is used for so that some files are only pulled from the remote directory. These might be cached executable script files that might be necessary for step debugging. Any changes to those files might have unpredictable affect on the running site.
 
-### This code project is still in alpha testing and is buggy.
+### This code project is still in alpha testing and might have bugs.
 
 ## Help:
 ```
