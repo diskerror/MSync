@@ -2,77 +2,68 @@
 
 namespace Logic;
 
-use Laminas\Json\Json;
+use RuntimeException;
 
-/**
- * Schema.
- * $files = ['fname(file name 1)' => [
- *                 'ftype'     => d|f|l,
- *                 'modts'     => seconds from 1/1/1970  midnight UMT,
- *                 'sizeb'     => bytes,
- *                 'hashval'   => hash as binary
- *             ],
- *             ['fname(file name 2) => ...],
- *             ...
- *         ];
- */
 class Manifest
 {
-	protected string $manifestPath;
+	protected string $manifestFile;
+	protected array  $manifest;
 
-	public function __construct(string $manifestPath)
+	public function __construct(string $manifestFile)
 	{
-		$this->manifestPath = $manifestPath;
-		$dir                = dirname($this->manifestPath);
-		if (!file_exists($dir) || !is_dir($dir)) {
+		$this->manifestFile = $manifestFile;
+		$dir                = dirname($this->manifestFile);
+		if (!file_exists($dir)) {
 			mkdir($dir, 0755, true);
+		}
+		elseif (!is_dir($dir)) {
+			throw new RuntimeException('Bad .msync directory.');
 		}
 	}
 
-	public function read(): array
+	public function __destruct()
 	{
-		return Json::decode(file_get_contents($this->manifestPath), Json::TYPE_ARRAY);
+		$this->write();
 	}
 
-	public function write(array $files): void
+	public function read(): ?array
 	{
+		if (!isset($this->manifest)) {
+			if (file_exists($this->manifestFile)) {
+				$this->manifest = json_decode(file_get_contents($this->manifestFile),
+					JSON_OBJECT_AS_ARRAY | JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
+			}
+		}
+
+		return $this->manifest;
+	}
+
+	public function __invoke()
+	{
+		return $this->read();
+	}
+
+
+	public function write(?array $fileList = null): void
+	{
+		if (is_array($fileList)) {
+			$this->manifest = $fileList;
+		}
+
+		if (!isset($this->manifest)) {
+			throw new RuntimeException('Manifest file was never read.');
+		}
+
 		/**
 		 * Perform "safe save".
 		 * New data is written to storage media before old data is deleted.
 		 * (Is this necessary?)
 		 */
-		$tempFileName = $this->manifestPath . '.temp';
-		file_put_contents($tempFileName, Json::encode($files));
-		rename($tempFileName, $this->manifestPath);
+		$tempFileName = $this->manifestFile . Opts::TEMP_SUFFIX;
+		file_put_contents($tempFileName, json_encode($this->manifest, JSON_THROW_ON_ERROR));
+		rename($tempFileName, $this->manifestFile);
 	}
 
-
-	public function getChanged(array $newList): array
-	{
-		$lastSync = $this->read();
-
-		$diffs = [];
-		foreach ($newList as $newFname => $newInfo) {
-			if (
-				$newInfo['ftype'] === 'f' && (
-					!array_key_exists($newFname, $lastSync) ||
-					(
-						($newInfo['hashval'] === '' || $lastSync[$newFname]['hashval'] === '') &&
-						(
-							$newInfo['ftype'] !== $lastSync[$newFname]['ftype'] ||
-							$newInfo['sizeb'] !== $lastSync[$newFname]['sizeb'] ||
-							$newInfo['modts'] !== $lastSync[$newFname]['modts']
-						)
-					) ||
-					$newInfo['hashval'] !== $lastSync[$newFname]['hashval']
-				)
-			) {
-				$diffs[$newFname] = $newInfo;
-			}
-		}
-
-		return $diffs;
-	}
 
 	public function update(array $newList): void
 	{
@@ -80,10 +71,10 @@ class Manifest
 			$lastSync = $this->read();
 
 			foreach ($newList as $newFname => $newInfo) {
-				$lastSync[$newFname] = $newInfo;
+				$this->manifest[$newFname] = $newInfo;
 			}
 
-			$this->write($lastSync);
+			$this->write($lastSync);    //	?
 		}
 	}
 
@@ -96,7 +87,7 @@ class Manifest
 				unset($lastSync[$newFname]);
 			}
 
-			$this->write($lastSync);
+			$this->write($lastSync);    //	?
 		}
 	}
 

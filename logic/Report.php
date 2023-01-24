@@ -4,8 +4,10 @@ namespace Logic;
 
 class Report
 {
-	protected bool $doPrint;
-	protected bool $beQuiet;
+	protected bool   $doPrint;
+	protected bool   $beQuiet;
+	protected int    $ct;
+	protected string $of_total;
 
 	public function __construct(bool $print = true, bool $quiet = false)
 	{
@@ -32,22 +34,24 @@ class Report
 		fprintf(STDERR, $str . ($nl ? PHP_EOL : ''));
 	}
 
-	public function status(string $str)
+	public function statusReset(int $total)
+	{
+		$this->ct       = 0;
+		$this->of_total = ' of ' . $total;
+	}
+
+	public function status()
 	{
 		if ($this->doPrint) {
-//			static $oldLines = 0;
-//			$newLines = substr_count($str, "\n");
-//
-//			if ($oldLines == 0) {
-//				$oldLines = $newLines;
-//			}
-//
-//			echo chr(27) . '[0G';
-//			echo chr(27) . '[' . $oldLines . 'A' . PHP_EOL;
-//
-//			$oldLines = $newLines;
-			echo "\r" . $str;
+			if (++$this->ct % 19 === 0) {
+				fprintf(STDOUT, "\r" . $this->ct . $this->of_total);
+			}
 		}
+	}
+
+	public function statusLast()
+	{
+		echo "\r" . $this->ct . $this->of_total . PHP_EOL;
 	}
 
 	public function error(string $str)

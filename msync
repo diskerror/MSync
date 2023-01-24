@@ -9,7 +9,6 @@
  * connecting to a server running Debian 10.
  */
 
-use Laminas\Json\Exception\ExceptionInterface;
 use Logic\HelpException;
 use Logic\MSync;
 
@@ -31,17 +30,13 @@ $exitCode = 0;
 try {
 	$msync = new MSync($argv);
 	
-	ini_set('memory_limit', '512M');
+	ini_set('memory_limit', -1);
 
 	$msync->run();
 }
 catch (HelpException $e){
 	fprintf(STDOUT, USAGE . PHP_EOL);
 	fprintf(STDOUT, file_get_contents(__DIR__ . '/help_screen.txt'));
-}
-catch (ExceptionInterface $e) {
-	fprintf(STDERR, $e . PHP_EOL);
-	$exitCode = $e->getCode();
 }
 catch (RuntimeException $e) {
 	fprintf(STDERR, $e->getMessage() . PHP_EOL);

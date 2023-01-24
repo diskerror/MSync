@@ -2,13 +2,18 @@
 	"name": "reid/suite-crm-tools",
 	"description": "A set of scripts to help manage a SuiteCRM instance.",
 	"type": "project",
+	"repositories": [
+		{
+			"type": "path",
+			"url": "../Typed"
+		}
+	],
 	"require": {
 		"php": "7.4.*",
-		"ext-json":"*",
+		"ext-json": "*",
+		"ext-posix": "*",
 		"ext-readline": "*",
-		"ext-sqlite3": "*",
 		"diskerror/autoload": "dev-main",
-		"laminas/laminas-json": "~3.3.0",
 		"php-ds/php-ds": "*",
 		"phpseclib/phpseclib": "*"
 	},

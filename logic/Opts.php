@@ -6,18 +6,45 @@ use RuntimeException;
 use UnderflowException;
 use UnexpectedValueException;
 
+/**
+ * @property  $IGNORE_REGEX     string
+ * @property  $NEVER_HASH       string
+ * @property  $NO_PUSH_REGEX    string
+ *
+ * @property  $host             string
+ * @property  $remotePath       string
+ * @property  $localPath        string
+ * @property  $user             string
+ * @property  $group            string
+ * @property  $sshKeyPath       string
+ * @property  $password         string
+ * @property  $verbose          bool
+ *
+ * @property  $restIndex        ?int
+ * @property  $dataDir          string
+ * @property  $verb             string
+ * @property  $fileToResolve    string
+ *
+ * @property  $manifestFile     string
+ * @property  $conflictPath     string
+ * @property  $pullRegexIgnore  string
+ * @property  $pushRegexIgnore  string
+ * @property  $pullRegexNoHash  string
+ * @property  $pushRegexNoHash  string
+ */
 class Opts
 {
 	public const DATA_DIR      = '.msync/';
 	public const MANIFEST_FILE = 'manifest.json';
 	public const CONFIG_FILE   = 'config.ini';
 	public const CONFLICT_DIR  = 'conflict/';
+	public const TEMP_SUFFIX   = '.temp';
 
 	/**
 	 * This algorithm seems to be the best trade-off between size (uniqueness),
-	 * speed, and cross-platform availability. tiger128,3? sha1? md4?
+	 * speed, and cross-platform availability. tiger128,3? sha1? md4? fnv164?
 	 */
-	public const HASH_ALGO = 'md4';
+	public const HASH_ALGO = 'fnv164';
 
 	/**
 	 * Regex file transfer rules.
@@ -33,6 +60,7 @@ class Opts
 	protected string $remotePath = '/var/www/html';
 	protected string $localPath  = '.';    //	Becomes full path to local directory.
 	protected string $user       = '';
+	protected string $group      = 'www-data';
 	protected string $sshKeyPath = '';
 	protected string $password   = '';
 	protected bool   $verbose    = true;
@@ -42,7 +70,7 @@ class Opts
 	protected array  $iniAllowed;
 
 	protected string $verb;
-	protected string $resolvePath;
+	protected string $fileToResolve;
 
 	public function __construct(array &$argv)
 	{
@@ -130,7 +158,7 @@ class Opts
 			if (!isset($argv[$this->restIndex + 1])) {
 				throw new UnderflowException('Missing path to file.');
 			}
-			$this->resolvePath = $argv[$this->restIndex + 1];
+			$this->fileToResolve = ltrim($argv[$this->restIndex + 1]);
 		}
 
 		if (array_key_exists('d', $opts)) {
@@ -144,15 +172,15 @@ class Opts
 			case $this->localPath === '':
 			case $this->localPath === '.':
 				$this->localPath = getcwd();
-				break;
+			break;
 
 			case substr($this->localPath, 0, 2) === '~/':
 				$this->localPath = $_SERVER['HOME'] . substr($this->localPath, 1);
-				break;
+			break;
 
 			case $this->localPath[0] !== '/':
 				$this->localPath = getcwd() . '/' . $this->localPath;
-				break;
+			break;
 		}
 
 		if (!file_exists($this->localPath)) {
@@ -214,17 +242,29 @@ class Opts
 	public function __get($name)
 	{
 		switch ($name) {
-			case 'manifestPath':
+			case 'manifestFile':
 				return $this->dataDir . self::MANIFEST_FILE;
 
 			case 'conflictPath':
 				return $this->dataDir . self::CONFLICT_DIR;
+
+			case 'pullRegexIgnore':
+				return self::nowdocToRegex($this->IGNORE_REGEX);
+
+			case 'pushRegexIgnore':
+				return self::nowdocToRegex($this->IGNORE_REGEX . $this->NO_PUSH_REGEX);
+
+			case 'pullRegexNoHash':
+				return self::nowdocToRegex($this->NEVER_HASH . $this->NO_PUSH_REGEX);
+
+			case 'pushRegexNoHash':
+				return self::nowdocToRegex($this->NEVER_HASH);
 		}
 
 		return $this->$name;
 	}
 
-	public static function nowdocToRegex(...$strs): string
+	protected static function nowdocToRegex(...$strs): string
 	{
 		foreach ($strs as &$s) {
 			$s = trim($s);
