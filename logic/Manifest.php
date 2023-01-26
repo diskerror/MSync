@@ -7,7 +7,7 @@ use RuntimeException;
 class Manifest
 {
 	protected string $manifestFile;
-	protected array  $manifest;
+	protected array  $manifest = [];
 
 	public function __construct(string $manifestFile)
 	{
@@ -26,9 +26,9 @@ class Manifest
 		$this->write();
 	}
 
-	public function read(): ?array
+	public function read(): array
 	{
-		if (!isset($this->manifest)) {
+		if (count($this->manifest) === 0) {
 			if (file_exists($this->manifestFile)) {
 				$this->manifest = json_decode(file_get_contents($this->manifestFile),
 					JSON_OBJECT_AS_ARRAY | JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
@@ -38,7 +38,7 @@ class Manifest
 		return $this->manifest;
 	}
 
-	public function __invoke()
+	public function __invoke(): array
 	{
 		return $this->read();
 	}
@@ -78,12 +78,12 @@ class Manifest
 		}
 	}
 
-	public function delete(array $newList): void
+	public function delete(array $dList): void
 	{
-		if (count($newList) > 0) {
+		if (count($dList) > 0) {
 			$lastSync = $this->read();
 
-			foreach ($newList as $newFname => $newInfo) {
+			foreach ($dList as $newFname => $newInfo) {
 				unset($lastSync[$newFname]);
 			}
 

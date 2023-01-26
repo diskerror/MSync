@@ -7,10 +7,6 @@ use phpseclib3\Exception\UnableToConnectException;
 use phpseclib3\Net\SSH2;
 use UnexpectedValueException;
 
-/**
- * @param array $remoteList
- * @param array $localList
- */
 class FileListRemote extends FileList
 {
 

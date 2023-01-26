@@ -7,34 +7,37 @@ use UnderflowException;
 use UnexpectedValueException;
 
 /**
- * @property  $IGNORE_REGEX     string
- * @property  $NEVER_HASH       string
- * @property  $NO_PUSH_REGEX    string
+ * @property  $IGNORE_REGEX         string
+ * @property  $NEVER_HASH           string
+ * @property  $NO_PUSH_REGEX        string
  *
- * @property  $host             string
- * @property  $remotePath       string
- * @property  $localPath        string
- * @property  $user             string
- * @property  $group            string
- * @property  $sshKeyPath       string
- * @property  $password         string
- * @property  $verbose          bool
+ * @property  $host                 string
+ * @property  $remotePath           string
+ * @property  $localPath            string
+ * @property  $user                 string
+ * @property  $group                string
+ * @property  $sshKeyPath           string
+ * @property  $password             string
+ * @property  $verbose              bool
  *
- * @property  $restIndex        ?int
- * @property  $dataDir          string
- * @property  $verb             string
- * @property  $fileToResolve    string
+ * @property  $restIndex            ?int
+ * @property  $appDataPath          string
+ * @property  $iniAllowed			array
  *
- * @property  $manifestFile     string
- * @property  $conflictPath     string
- * @property  $pullRegexIgnore  string
- * @property  $pushRegexIgnore  string
- * @property  $pullRegexNoHash  string
- * @property  $pushRegexNoHash  string
+ * @property  $verb                 string
+ * @property  $fileToResolve        string
+ *
+ * Generated in "__get()".
+ * @property  $manifestFile         string
+ * @property  $conflictPath         string
+ * @property  $pullRegexIgnore      string
+ * @property  $pushRegexIgnore      string
+ * @property  $pullRegexNoHash      string
+ * @property  $pushRegexNoHash      string
  */
 class Opts
 {
-	public const DATA_DIR      = '.msync/';
+	public const APP_DATA_DIR  = '/.msync/';
 	public const MANIFEST_FILE = 'manifest.json';
 	public const CONFIG_FILE   = 'config.ini';
 	public const CONFLICT_DIR  = 'conflict/';
@@ -65,8 +68,8 @@ class Opts
 	protected string $password   = '';
 	protected bool   $verbose    = true;
 
-	protected ?int   $restIndex;
-	protected string $dataDir = '';
+	protected int    $restIndex = 0;
+	protected string $appDataPath;
 	protected array  $iniAllowed;
 
 	protected string $verb;
@@ -74,15 +77,6 @@ class Opts
 
 	public function __construct(array &$argv)
 	{
-		/**
-		 * Protect these from being overwritten.
-		 */
-		$this->iniAllowed = get_object_vars($this);
-		unset($this->iniAllowed['localPath']);
-		unset($this->iniAllowed['restIndex']);
-		unset($this->iniAllowed['dataDir']);
-		unset($this->iniAllowed['iniAllowed']);
-
 		/**
 		 * Always ignore these entries (testing with SuiteCRM 7):
 		 *    top directory and directories above the current directory (., ..)
@@ -138,6 +132,16 @@ class Opts
 			/vendor/.*
 			NDOC;
 
+		/**
+		 * Protect these from being overwritten.
+		 */
+		$this->iniAllowed = get_object_vars($this);
+		unset($this->iniAllowed['localPath']);
+		unset($this->iniAllowed['restIndex']);
+		unset($this->iniAllowed['appDataPath']);
+		unset($this->iniAllowed['iniAllowed']);
+		$this->iniAllowed = array_keys($this->iniAllowed);
+
 		$opts = getopt(
 			'd:Hh:p::u:v',
 			['directory:', 'help', 'host:', 'password::', 'username:', 'verbose'],
@@ -191,7 +195,7 @@ class Opts
 		//	Read settings from config file. They will overwrite corresponding variables.
 		if (file_exists(self::CONFIG_FILE)) {
 			foreach (parse_ini_file(self::CONFIG_FILE, false, INI_SCANNER_TYPED) as $k => $v) {
-				if (array_key_exists($k, $this->iniAllowed)) {
+				if (in_array($k, $this->iniAllowed, true)) {
 					$this->$k = $v;
 				}
 			}
@@ -233,9 +237,9 @@ class Opts
 
 		$this->verbose = array_key_exists('v', $opts) || array_key_exists('verbose', $opts);
 
-		$this->dataDir = $this->localPath . '/' . self::DATA_DIR;
-		if (!is_dir($this->dataDir)) {
-			mkdir($this->dataDir);
+		$this->appDataPath = $this->localPath . self::APP_DATA_DIR;
+		if (!is_dir($this->appDataPath)) {
+			mkdir($this->appDataPath);
 		}
 	}
 
@@ -243,10 +247,10 @@ class Opts
 	{
 		switch ($name) {
 			case 'manifestFile':
-				return $this->dataDir . self::MANIFEST_FILE;
+				return $this->appDataPath . self::MANIFEST_FILE;
 
 			case 'conflictPath':
-				return $this->dataDir . self::CONFLICT_DIR;
+				return $this->appDataPath . self::CONFLICT_DIR;
 
 			case 'pullRegexIgnore':
 				return self::nowdocToRegex($this->IGNORE_REGEX);

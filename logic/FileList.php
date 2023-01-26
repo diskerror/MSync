@@ -2,10 +2,6 @@
 
 namespace Logic;
 
-/**
- * @param array $remoteList
- * @param array $localList
- */
 abstract class FileList
 {
 	protected Opts   $opts;

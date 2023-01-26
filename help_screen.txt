@@ -67,7 +67,7 @@ OPTIONS:
 		in the config file.
 
 	-p, --password
-		[not working]
+		[This is not implimented. Only SSH keypair implemented.]
 		Specify a password to log into the remote system. If there is no
 		password then the user's ssh key, "~/.ssh/id_rsa" is used.
 
@@ -86,7 +86,8 @@ group      = www-data
 sshKeyPath = ~/.ssh/id_rsa
 password   =
 
-These will require explanation (soon).
+These will require explanation (soon). For now, see sample testing data in file
+"logic/opts.php".
 IGNORE_REGEX
 NEVER_HASH
 NO_PUSH_REGEX
