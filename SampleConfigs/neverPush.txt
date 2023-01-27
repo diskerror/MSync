@@ -1,0 +1,9 @@
+.*\.exe
+.*~
+/cache/.*
+/config.*\.php
+/custom/blowfish/.*
+/custom/history/.*
+/silentUpgrade*.php
+/upload.*
+/vendor/.*

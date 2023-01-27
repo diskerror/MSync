@@ -1,16 +1,16 @@
 #!/usr/bin/env php
 <?php
 
-use Logic\Opts;
+use Logic\Options;
 
-require 'Opts.php';
-$opts = new Opts($argv);
+require 'Options.php';
+$opts = new Options($argv);
 
 $path        = $opts->localPath;
 $plength     = strlen($path);
 $regexIgnore = '@^(.*/\..*|/vendor/.*)$@';
 $regexNoHash = '@^(.*\.jpg|.*\.exe)$@';
-$hashAlgo    = Opts::HASH_ALGO;
+$hashAlgo    = Options::HASH_ALGO;
 
 require 'find.php';
 

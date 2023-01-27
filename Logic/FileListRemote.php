@@ -10,12 +10,12 @@ use UnexpectedValueException;
 class FileListRemote extends FileList
 {
 
-	public function setStatsArray(): void
+	public function init(): void
 	{
-		$key = PublicKeyLoader::load(file_get_contents($this->opts->sshKeyPath));
-		$ssh = new SSH2($this->opts->host);
+		$sshKey = PublicKeyLoader::load(file_get_contents($this->opts->sshKeyPath));
+		$ssh    = new SSH2($this->opts->host);
 
-		if (!$ssh->login($this->opts->user, $key)) {
+		if (!$ssh->login($this->opts->user, $sshKey)) {
 			throw new UnableToConnectException('Login failed');
 		}
 
@@ -24,7 +24,7 @@ class FileListRemote extends FileList
 		//	remove everything before the first '$', ie. "<?php\n" & etc.
 		$cmd = strstr($cmd, '$ret');
 		$cmd = strtr($cmd, "'", '"');    //	change all possible single-quotes to double
-		$cmd = 'ini_set("memory_limit", "512M"); ' . $cmd;    //	removes "<?php\n"
+		$cmd = 'ini_set("memory_limit", "512M"); ' . $cmd;
 
 		//	Replace variables with literal strings.
 		$cmd = str_replace(
@@ -32,15 +32,15 @@ class FileListRemote extends FileList
 			[
 				'"' . $this->opts->remotePath . '"',
 				strlen($this->opts->remotePath),
-				'"' . $this->regexIgnore . '"',
-				'"' . $this->regexNoHash . '"',
-				'"' . Opts::HASH_ALGO . '"',
+				'"' . $this->opts->regexIgnore . '"',
+				'"' . $this->opts->regexNoHash . '"',
+				'"' . Options::HASH_ALGO . '"',
 			],
 			$cmd
 		);
 
 
-		$cmd .= ' echo json_encode($ret);';    //	New line provided by echo '$cmd' below
+		$cmd .= ' echo json_encode($ret);';	//	Required new-line provided by echo '$cmd' below.
 
 		$response = $ssh->exec("echo '$cmd' | php -a");
 
@@ -51,7 +51,7 @@ class FileListRemote extends FileList
 			throw new UnexpectedValueException('Blank response from remote.');
 		}
 
-		$this->fileStatsArray =
+		$this->fileList =
 			json_decode($response, JSON_BIGINT_AS_STRING | JSON_OBJECT_AS_ARRAY | JSON_THROW_ON_ERROR);
 	}
 

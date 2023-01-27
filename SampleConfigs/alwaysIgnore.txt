@@ -1,0 +1,11 @@
+/\.
+.*/\.\.
+.*/\.[^./].*
+.*\.log
+.*\.csv
+.*\.zip
+.*[0-9a-fA-F]{12}
+.*/IMPORT_[^/]+\d
+/sugarcrm_old\.sql
+/upload[^/]+/.*
+.*/deleted/.*

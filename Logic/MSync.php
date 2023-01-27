@@ -16,12 +16,12 @@ class MSync
 		
 		NDOC;
 
-	protected Opts   $opts;
-	protected Report $report;
+	protected Options $opts;
+	protected Report  $report;
 
 	public function __construct(array $argv)
 	{
-		$this->opts   = new Opts($argv);
+		$this->opts   = new Options($argv);
 		$this->report = new Report($this->opts->verbose);
 	}
 
@@ -61,10 +61,12 @@ class MSync
 
 	protected function isConflicted(): bool
 	{
-		foreach (new RIterIterator(new RDirIterator($this->opts->conflictPath, FI::SKIP_DOTS)) as $f) {
-			//	We found one and we only need one.
-			//	It doesn't matter if it was found this time or a previous time.
-			return true;
+		if (file_exists($this->opts->conflictPath)) {
+			foreach (new RIterIterator(new RDirIterator($this->opts->conflictPath, FI::SKIP_DOTS)) as $f) {
+				//	We found one and we only need one.
+				//	It doesn't matter if it was found this time or a previous time.
+				return true;
+			}
 		}
 		return false;
 	}
@@ -97,31 +99,33 @@ class MSync
 		}
 
 		$this->report->out('Getting remote file list.');
-		$fileListRemote = new FileListRemote($this->opts, $this->opts->pullRegexIgnore, $this->opts->pullRegexNoHash);
+		$this->opts->addFileToNoHash();
+		$fileListRemote = new FileListRemote($this->opts);
 
 		$this->report->out('Getting local file list.');
-		$fileListLocal = new FileListLocal($this->opts, $this->opts->pullRegexIgnore, $this->opts->pullRegexNoHash);
-
-		$this->report->out('Bulding list of files to transfer.');
-		//	Local list is actually built here on first call.
-		$localCompare = new FileCompareAlgorithm($fileListLocal());
+		$fileListLocal = new FileListLocal($this->opts);
 
 		$this->report->out('Opening SFTP connection to remote directory.');
 		$sync = new Sync($this->opts);
 
 		$this->report->out('Pulling non-existent or files that differ.');
-		$this->report->statusReset(count($fileListRemote()));
-		foreach ($fileListRemote() as $fname => $finfo) {
-			if ($localCompare->isDifferent($fname, $finfo)) {
-				$sync->pullFileNew($fname, $finfo);
+		$this->report->statusReset(count($fileListRemote));
+		foreach ($fileListRemote as $fname => $finfo) {
+			if ($fileListLocal->isDifferent($fname, $finfo)) {
+				$sync->pullFile($fname, $finfo);
 			}
 			$this->report->status();
 		}
 		$this->report->statusLast();
-		$sync->updateLocalDirectories($fileListRemote());
+		$sync->updateLocalDirectories($fileListRemote);
 
 		$this->report->out('Writing file info to manifest.');
-		(new Manifest($this->opts->manifestFile))->write($fileListRemote());
+		$manifest = (new Manifest($this->opts));
+		//	Clear old data if any.
+		foreach ($manifest as $fname => $info) {
+			unset($manifest[$fname]);
+		}
+		$manifest->update($fileListRemote);
 
 		$this->report->out('Initialization complete.');
 	}
@@ -132,15 +136,15 @@ class MSync
 		$this->_assertFileExists($this->opts->manifestFile, self::NOT_INITIALIZED);
 
 		$this->report->out('Getting remote file list.');
-		$fileListRemote = new FileListRemote($this->opts, $this->opts->pullRegexIgnore, $this->opts->pullRegexNoHash);
+		$this->opts->addFileToNoHash('neverPush.txt');
+		$fileListRemote = new FileListRemote($this->opts,);
 
 
 		$this->report->out('Finding remote files that have changed.');
-		$manifest        = new Manifest($this->opts->manifestFile);
-		$manifestCompare = new FileCompareAlgorithm($manifest());
-		$remoteChanged   = [];
-		foreach ($fileListRemote() as $fname => $info) {
-			if ($info['ftype'] === 'f' && $manifestCompare->isDifferent($fname, $info)) {
+		$manifest      = new Manifest($this->opts);
+		$remoteChanged = new FileList($this->opts);
+		foreach ($fileListRemote as $fname => $info) {
+			if ($info['ftype'] === 'f' && $manifest->isDifferent($fname, $info)) {
 				$remoteChanged[$fname] = $info;
 			}
 		}
@@ -149,10 +153,10 @@ class MSync
 		if ($ctRemotChanged > 0) {
 			//  Build list of local files that have changed.
 			$this->report->out('Retrieving local files that might have changed.');
-			$fileListLocal = new FileListLocal($this->opts, $this->opts->pullRegexIgnore, $this->opts->pullRegexNoHash);
-			$localChanged  = [];
-			foreach ($fileListLocal() as $fname => $info) {
-				if ($info['ftype'] === 'f' && $manifestCompare->isDifferent($fname, $info)) {
+			$fileListLocal = new FileListLocal($this->opts);
+			$localChanged  = new FileList($this->opts);
+			foreach ($fileListLocal as $fname => $info) {
+				if ($info['ftype'] === 'f' && $manifest->isDifferent($fname, $info)) {
 					$localChanged[$fname] = $info;
 				}
 			}
@@ -160,17 +164,22 @@ class MSync
 			$this->report->out('Opening SFTP connection to remote directory.');
 			$sync = new Sync($this->opts);
 
+			//	Make sure directory is ready for possible conflicts.
+			if (!file_exists($this->opts->conflictPath)) {
+				mkdir($this->opts->conflictPath, 0755, true);
+			}
+
 			//  Copy files from remote directory...
 			//      If the local file has changed then
 			//          put it in the conflict directory.
 			//      Else,
 			//          copy it in place.
 			$this->report->out('Pulling changes from remote directory.');
-			$directories = [];
+			$directories = new FileList($this->opts);
 			$this->report->statusReset(count($remoteChanged));
 			foreach ($remoteChanged as $rChangedFname => $rChangedInfo) {
 				if ($rChangedInfo['ftype'] !== 'd') {
-					$sync->pullFileNew($rChangedFname, $rChangedInfo, isset($localChanged[$rChangedFname]));
+					$sync->pullFile($rChangedFname, $rChangedInfo, isset($localChanged[$rChangedFname]));
 				}
 				else {
 					$directories[$rChangedFname] = $rChangedInfo;
@@ -204,10 +213,6 @@ class MSync
 	{
 		$this->_assertFileExists($this->opts->manifestFile, self::NOT_INITIALIZED);
 
-		if (!file_exists($this->opts->conflictPath) || !is_dir($this->opts->conflictPath)) {
-			mkdir($this->opts->conflictPath, 0755, true);
-		}
-
 		//  Check conflict directory for files.
 		//  If any, abort push and advise user.
 		if ($this->isConflicted()) {
@@ -215,35 +220,12 @@ class MSync
 			return;
 		}
 
-		//  Build list of remote files that have changed or are new.
-		//  If any, abort push and advise user.
-		$this->report->out('Getting remote file list.');
-		$fileListRemote = new FileListRemote($this->opts, $this->opts->pullRegexIgnore, $this->opts->pullRegexNoHash);
-
-
-		$this->report->out('Finding remote files that have changed.');
-		$manifest        = new Manifest($this->opts->manifestFile);
-		$manifestCompare = new FileCompareAlgorithm($manifest());
-		$remoteChanged   = [];
-		foreach ($fileListRemote() as $fname => $info) {
-			if ($info['ftype'] === 'f' && $manifestCompare->isDifferent($fname, $info)) {
-				$remoteChanged[$fname] = $info;
-			}
-		}
-
-
-		if (count($remoteChanged) > 0) {
-			$this->report->shout('There are changed files in the remote directory.');
-			$this->report->shout('Perform a "pull" and check changes. Aborting.');
-			return;
-		}
-
 		//  Build list of local files that have changed.
 		$this->report->out('Retrieving local files that might have changed.');
-		$fileListLocal = new FileListLocal($this->opts, $this->opts->pullRegexIgnore, $this->opts->pullRegexNoHash);
-		$localChanged  = [];
-		foreach ($fileListLocal() as $fname => $info) {
-			if ($info['ftype'] === 'f' && $manifestCompare->isDifferent($fname, $info)) {
+		$fileListLocal = new FileListLocal($this->opts);
+		$localChanged  = new FileList($this->opts);
+		foreach ($fileListLocal as $fname => $info) {
+			if ($info['ftype'] === 'f' && $manifest->isDifferent($fname, $info)) {
 				$localChanged[$fname] = $info;
 			}
 		}
@@ -253,6 +235,26 @@ class MSync
 			return;
 		}
 
+		//  Build list of remote files that have changed or are new.
+		//  If any, abort push and advise user.
+		$this->report->out('Getting remote file list.');
+		$this->opts->addFileToIgnore('neverPush.txt');
+		$fileListRemote = new FileListRemote($this->opts);
+
+
+		$this->report->out('Finding remote files that have changed.');
+		$manifest      = new Manifest($this->opts);
+		$remoteChanged = new FileList($this->opts);
+		foreach ($fileListRemote as $fname => $info) {
+			if ($info['ftype'] === 'f' && $manifest->isDifferent($fname, $info)) {
+				//	All we need is one.
+				$this->report->shout('There are changed files in the remote directory.');
+				$this->report->shout('Perform a "pull" and check changes. Aborting.');
+				return;
+			}
+		}
+
+
 		$this->report->out('Opening SFTP connection to remote directory.');
 		$sync = new Sync($this->opts);
 
@@ -261,22 +263,7 @@ class MSync
 		$this->report->statusReset(count($localChanged));
 		foreach ($localChanged as $fname => $info) {
 			if ($info['ftype'] !== 'd') {
-				if (isset($localChanged[$fname])) {
-					//  If a local file is changing from a link to a regular file then
-					//      first delete the link or data will write to the wrong place.
-					if (is_link($fname)) {
-						unlink($fname);
-
-						if (file_exists($this->opts->conflictPath . $fname)) {
-							unlink($this->opts->conflictPath . $fname);
-						}
-					}
-
-					$sync->pullFileNew($fname, $info, true);
-				}
-				else {
-					$sync->pullFileNew($fname, $info);
-				}
+				$sync->pushFile($fname, $info);
 			}
 			else {
 				$directories[$fname] = $info;
@@ -295,7 +282,7 @@ class MSync
 	{
 		$this->_assertFileExists($this->opts->manifestFile, self::NOT_INITIALIZED);
 
-		$fullPath = realpath($this->opts->conflictPath . $this->opts->fileToResolve);
+		$fullPath = $this->opts->conflictPath . $this->opts->fileToResolve;
 
 		//  Written as assertions.
 		switch (false) {

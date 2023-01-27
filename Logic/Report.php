@@ -43,7 +43,7 @@ class Report
 	public function status()
 	{
 		if ($this->doPrint) {
-			if (++$this->ct % 19 === 0) {
+			if (++$this->ct % 29 === 0) {
 				fprintf(STDOUT, "\r" . $this->ct . $this->of_total);
 			}
 		}

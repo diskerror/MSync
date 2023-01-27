@@ -14,7 +14,7 @@
  * @param $regexNoHash      string    Regex pattern of file names not to hash.
  * @param $hashName         int       Character count of $path.
  *
- * @sets  $rtval    array    Array of name/value pairs (associative array) with info about each file.
+ * @sets  $ret				array     Array of name/value pairs (associative array) with info about each file.
  */
 
 $ret = [];
@@ -28,7 +28,7 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path)) as
 		$ret[$fname] = [
 			"ftype"   => $t,
 			"sizeb"   => ($t === "f") ? $f->getSize() : null,
-			"modts"   => $f->getMTime(),
+			"mtime"   => $f->getMTime(),
 			"hashval" => ($t === "f" && preg_match($regexNoHash, $rn) === 0) ? hash_file($hashAlgo, $fn) : "",
 			"owner"   => posix_getpwuid($f->getOwner())["name"],
 		];

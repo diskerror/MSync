@@ -5,17 +5,17 @@ namespace Logic;
 class FileListLocal extends FileList
 {
 
-	protected function setStatsArray(): void
+	protected function init(): void
 	{
 		$path        = $this->opts->localPath;
 		$plength     = strlen($this->opts->localPath);
-		$regexIgnore = $this->regexIgnore;
-		$regexNoHash = $this->regexNoHash;
-		$hashAlgo    = Opts::HASH_ALGO;
+		$regexIgnore = $this->opts->regexIgnore;
+		$regexNoHash = $this->opts->regexNoHash;
+		$hashAlgo    = Options::HASH_ALGO;
 
 		require 'find.php';
 
-		$this->fileStatsArray = $ret;
+		$this->fileList = $ret;
 	}
 
 }

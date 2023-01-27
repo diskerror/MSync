@@ -14,8 +14,11 @@
 		"ext-posix": "*",
 		"ext-readline": "*",
 		"diskerror/autoload": "dev-main",
-		"php-ds/php-ds": "*",
-		"phpseclib/phpseclib": "*"
+		"php-ds/php-ds": "1.4.*",
+		"phpseclib/phpseclib": "3.0.*"
+	},
+	"require-dev": {
+		"phpunit/phpunit": "9.5.*"
 	},
 	"suggest": {
 		"ext-ds": "Extension for data structures rather than the PHP array implementation."
@@ -28,7 +31,7 @@
 	],
 	"autoload": {
 		"psr-4": {
-			"Logic\\": "logic"
+			"Logic\\": "Logic"
 		}
 	}
 }

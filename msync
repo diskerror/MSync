@@ -38,12 +38,14 @@ catch (HelpException $e){
 }
 catch (RuntimeException $e) {
 	fprintf(STDERR, $e->getMessage() . PHP_EOL);
+	fprintf(STDERR, $e->getTraceAsString() . PHP_EOL);
 	fprintf(STDERR, USAGE);
 	$exitCode = $e->getCode();
 }
 catch (Throwable $t) {
 	fprintf(STDERR, $t . PHP_EOL);
 	$exitCode = $t->getCode();
+	fprintf(STDERR, $t->getTraceAsString() . PHP_EOL);
 }
 
 exit($exitCode);
