@@ -68,6 +68,7 @@ class Options
 	protected string $sshKeyPath = '';              //	relative path, becomes full path
 	protected string $password   = '';
 	protected bool   $verbose    = true;
+	protected string $diffTool   = 'phpstorm diff';    //	Also `bbdiff`
 
 	protected string $verb;
 	protected string $fileToResolve;
@@ -88,7 +89,7 @@ class Options
 
 		$opts = getopt(
 			'd:Hh:p::u:v',
-			['directory:', 'help', 'host:', 'password::', 'username:', 'verbose'],
+			['diff-tool', 'directory:', 'help', 'host:', 'password::', 'username:', 'verbose'],
 			$this->restIndex
 		);
 
@@ -160,6 +161,10 @@ class Options
 			$this->host = trim($opts['host']);
 		}
 
+		if (array_key_exists('diff-tool', $opts)) {
+			$this->diffTool = trim($opts['diff-tool']);
+		}
+
 		//  TODO: make password behavior like mysql
 		if (array_key_exists('p', $opts)) {
 			$this->password = $opts['p'];
@@ -189,7 +194,7 @@ class Options
 
 		$this->verbose = array_key_exists('v', $opts) || array_key_exists('verbose', $opts);
 
-		//	Set file exclude strings.
+		//	Set basic file exclude strings.
 		$this->regexIgnore = self::APP_DATA_DIR . '?.*|';    //	Always ignore our local application data.
 
 		if (file_exists($this->appDataPath . self::ALWAYS_IGNORE_FILE)) {
@@ -209,7 +214,6 @@ class Options
 			$this->regexNoHash =
 				self::listToRegex(file_get_contents(self::SAMPLE_CONFIGS_DIR . self::NEVER_HASH_FILE));
 		}
-
 		//	TODO: Needs option to save configs to local app config.
 	}
 

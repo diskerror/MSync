@@ -7,12 +7,12 @@ use phpseclib3\Exception\UnableToConnectException;
 use phpseclib3\Net\SFTP;
 
 /**
- * Msync class.
+ * Xfer class.
  *
  * @param array $remoteList
  * @param array $localList
  */
-class Sync
+class Xfer
 {
 	/**
 	 * Settings from command line and config file.
@@ -23,13 +23,14 @@ class Sync
 	 * Functional classes.
 	 */
 	protected SFTP $sftp;
-	public array   $destinationList;
 
 	public function __construct(Options $opts)
 	{
 		$this->opts = $opts;
 
-		chdir($this->opts->localPath);
+		if ($this->opts->localPath !== getcwd()) {
+			chdir($this->opts->localPath);
+		}
 
 		$key = PublicKeyLoader::load(file_get_contents($this->opts->sshKeyPath));
 
@@ -49,33 +50,35 @@ class Sync
 
 	public function pullFile(string $remotefname, array $remoteInfo, bool $toConflict = false): void
 	{
+		if ($remoteInfo['ftype'] === 'd') {
+			return;
+		}
+
 		$localfname = ($toConflict ? $this->opts->conflictPath : '') . $remotefname;
 		$tempName   = $localfname . Options::TEMP_SUFFIX;
 
-		if ($remoteInfo['ftype'] !== 'd') {
-			$dname = preg_replace('@^(.*)/[^/]+$@', '$1', $tempName);
-			if (!file_exists($dname)) {
-				mkdir($dname, 0775, true);
-			}
+		$dname = preg_replace('@^(.*)/[^/]+$@', '$1', $tempName);
+		if (!file_exists($dname)) {
+			mkdir($dname, 0775, true);
 		}
 
 		switch ($remoteInfo['ftype']) {
 			case 'f':
 				$this->sftp->get($remotefname, $tempName);
-				rename($tempName, $localfname);
 			break;
 
 			case 'l':
 				$target = $this->sftp->readlink($remotefname);
 				symlink($target, $tempName);
-				rename($tempName, $localfname);
 			break;
 		}
+
+		rename($tempName, $localfname);
 	}
 
 	public function pushFile(string $localfname, array $localInfo): void
 	{
-		if ($localInfo['ftype'] !== 'd') {
+		if ($localInfo['ftype'] === 'd') {
 			return;
 		}
 

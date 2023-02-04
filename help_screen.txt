@@ -52,6 +52,9 @@ VERBS
 		write the same file in the remote directory during the next
 		push. This verb requires a relative path to file.
 
+	conflicted:
+		List files that are in conflict.
+
 
 OPTIONS:
 
@@ -72,7 +75,11 @@ OPTIONS:
 		password then the user's ssh key, "~/.ssh/id_rsa" is used.
 
 	-u, --username
-		Overrides the username set in the config file. 
+		Overrides the username set in the config file.
+
+	--diff-tool
+		Users choice of diff utility. Default is `phpstorm diff`. But
+		another possibility is `bbdiff' or just `diff`.
 
 
 CONFIG FILE
@@ -85,6 +92,7 @@ user       =
 group      = www-data
 sshKeyPath = ~/.ssh/id_rsa
 password   =
+diffTool   = bbdiff
 
 These will require explanation (soon). For now, see sample testing data in file
 "logic/opts.php".

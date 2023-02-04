@@ -47,6 +47,10 @@ class MSync
 				$this->doResolve();
 			break;
 
+			case 'conflicted':
+				$this->showConflicted();
+			break;
+
 			default:
 				throw new UnexpectedValueException('Unknown verb.');
 		}
@@ -105,18 +109,18 @@ class MSync
 		$fileListLocal = new FileListLocal($this->opts);
 
 		$this->report->out('Opening SFTP connection to remote directory.');
-		$sync = new Sync($this->opts);
+		$transfer = new Xfer($this->opts);
 
 		$this->report->out('Pulling non-existent or files that differ.');
 		$this->report->statusReset(count($fileListRemote));
 		foreach ($fileListRemote as $fname => $finfo) {
 			if ($fileListLocal->isDifferent($fname, $finfo)) {
-				$sync->pullFile($fname, $finfo);
+				$transfer->pullFile($fname, $finfo);
 			}
 			$this->report->status();
 		}
 		$this->report->statusLast();
-		$sync->updateLocalDirectories($fileListRemote);
+		$transfer->updateLocalDirectories($fileListRemote);
 
 		$this->report->out('Writing file info to manifest.');
 		$manifest = (new Manifest($this->opts));
@@ -161,7 +165,7 @@ class MSync
 			}
 
 			$this->report->out('Opening SFTP connection to remote directory.');
-			$sync = new Sync($this->opts);
+			$transfer = new Xfer($this->opts);
 
 			//	Make sure directory is ready for possible conflicts.
 			if (!file_exists($this->opts->conflictPath)) {
@@ -178,7 +182,7 @@ class MSync
 			$this->report->statusReset(count($remoteChanged));
 			foreach ($remoteChanged as $rChangedFname => $rChangedInfo) {
 				if ($rChangedInfo['ftype'] !== 'd') {
-					$sync->pullFile($rChangedFname, $rChangedInfo, isset($localChanged[$rChangedFname]));
+					$transfer->pullFile($rChangedFname, $rChangedInfo, isset($localChanged[$rChangedFname]));
 				}
 				else {
 					$directories[$rChangedFname] = $rChangedInfo;
@@ -186,7 +190,7 @@ class MSync
 				$this->report->status();
 			}
 			$this->report->statusLast();
-			$sync->updateLocalDirectories($directories);
+			$transfer->updateLocalDirectories($directories);
 
 			//  Write changed and new file stats into the manifest.
 			$this->report->out('Writing updates to manifest.');
@@ -197,7 +201,7 @@ class MSync
 		//      launch user's preferred "diff" engine to compare files.
 		//      Or print paths to directories to compare.
 		if ($this->isConflicted()) {
-			exec('phpstorm diff "' . $this->opts->localPath . '" "' . $this->opts->conflictPath . '"');
+			exec($this->opts->diffTool . ' "' . $this->opts->localPath . '" "' . $this->opts->conflictPath . '"');
 		}
 		elseif ($ctRemotChanged === 0) {
 			$this->report->out('Nothing to do.');
@@ -235,12 +239,12 @@ class MSync
 			return;
 		}
 
+
 		//  Build list of remote files that have changed or are new.
 		//  If any, abort push and advise user.
 		$this->report->out('Getting remote file list.');
 		$this->opts->addFileToIgnore('neverPush.txt');
 		$fileListRemote = new FileListRemote($this->opts);
-
 
 		$this->report->out('Finding remote files that have changed.');
 		foreach ($fileListRemote as $fname => $info) {
@@ -254,22 +258,22 @@ class MSync
 
 
 		$this->report->out('Opening SFTP connection to remote directory.');
-		$sync = new Sync($this->opts);
+		$transfer = new Xfer($this->opts);
 
 		$this->report->out('Pushing changes to remote directory.');
 		$directories = [];
 		$this->report->statusReset(count($localChanged));
 		foreach ($localChanged as $fname => $info) {
-			if ($info['ftype'] !== 'd') {
-				$sync->pushFile($fname, $info);
+			if ($info['ftype'] === 'd') {
+				$directories[$fname] = $info;
 			}
 			else {
-				$directories[$fname] = $info;
+				$transfer->pushFile($fname, $info);
 			}
 			$this->report->status();
 		}
 		$this->report->statusLast();
-		$sync->updateRemoteDirectories($directories);
+		$transfer->updateRemoteDirectories($directories);
 
 		$this->report->out('Writing updates to manifest.');
 		$manifest->update($localChanged);
@@ -298,7 +302,19 @@ class MSync
 		}
 
 		unlink($fullPath);
-		$this->report->out('"' . $this->opts->fileToResolve . '" has been removed.');
+		$this->report->out('"' . $this->opts->fileToResolve . '" has been marked as resolved.');
+	}
+
+	protected function showConflicted(): void
+	{
+		$this->_assertFileExists($this->opts->manifestFile, self::NOT_INITIALIZED);
+
+		if (file_exists($this->opts->conflictPath)) {
+			$cpLength = strlen($this->opts->conflictPath);
+			foreach (new RIterIterator(new RDirIterator($this->opts->conflictPath, FI::SKIP_DOTS)) as $f) {
+				$this->report->shout(substr($f->getPathname(), $cpLength));
+			}
+		}
 	}
 
 }
