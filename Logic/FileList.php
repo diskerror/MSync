@@ -11,7 +11,7 @@ use JsonSerializable;
 class FileList implements Countable, ArrayAccess, IteratorAggregate, JsonSerializable
 {
 	protected Options $opts;
-	protected         $fileList = [];
+	protected array   $fileList = [];
 
 	final public function __construct(Options $opts)
 	{

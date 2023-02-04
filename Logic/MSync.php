@@ -64,7 +64,6 @@ class MSync
 		if (file_exists($this->opts->conflictPath)) {
 			foreach (new RIterIterator(new RDirIterator($this->opts->conflictPath, FI::SKIP_DOTS)) as $f) {
 				//	We found one and we only need one.
-				//	It doesn't matter if it was found this time or a previous time.
 				return true;
 			}
 		}
@@ -204,7 +203,7 @@ class MSync
 			$this->report->out('Nothing to do.');
 		}
 		else {
-			$this->report->out('Finnished with no conflicts.');
+			$this->report->out('Finished with no conflicts.');
 		}
 	}
 
@@ -222,6 +221,7 @@ class MSync
 
 		//  Build list of local files that have changed.
 		$this->report->out('Retrieving local files that might have changed.');
+		$manifest      = new Manifest($this->opts);
 		$fileListLocal = new FileListLocal($this->opts);
 		$localChanged  = new FileList($this->opts);
 		foreach ($fileListLocal as $fname => $info) {
@@ -243,13 +243,11 @@ class MSync
 
 
 		$this->report->out('Finding remote files that have changed.');
-		$manifest      = new Manifest($this->opts);
-		$remoteChanged = new FileList($this->opts);
 		foreach ($fileListRemote as $fname => $info) {
 			if ($info['ftype'] === 'f' && $manifest->isDifferent($fname, $info)) {
 				//	All we need is one.
 				$this->report->shout('There are changed files in the remote directory.');
-				$this->report->shout('Perform a "pull" and check changes. Aborting.');
+				$this->report->shout('Perform a “pull” and check changes. Aborting.');
 				return;
 			}
 		}
