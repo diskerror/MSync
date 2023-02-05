@@ -7,10 +7,6 @@ use UnderflowException;
 use UnexpectedValueException;
 
 /**
- * @property  $IGNORE_REGEX          string
- * @property  $NEVER_HASH            string
- * @property  $NO_PUSH_REGEX         string
- *
  * @property  $host                  string
  * @property  $remotePath            string
  * @property  $localPath             string
@@ -153,7 +149,7 @@ class Options
 			}
 		}
 
-		//	CLI option always override INI file.
+		//	These command line options always override INI file.
 		if (array_key_exists('h', $opts)) {
 			$this->host = trim($opts['h']);
 		}

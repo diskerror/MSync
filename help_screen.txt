@@ -33,7 +33,8 @@ VERBS
 
 	init:
 		Copies remote directory into the current or specified directory.
-		Only new or changed files are copied. Nothing is deleted.
+		If there are files in the target directory then only new or
+		changed files are copied. Nothing is deleted.
 
 	pull:
 		Pull new files from remote directory. If a file has been changed
@@ -45,7 +46,8 @@ VERBS
 		Push changed files to remote directory. If any file in the re-
 		mote directory has changed since 'check' was last run the file
 		conflict has not been resolved then no files are copied and a
-		warning message is displayed.
+		warning message is displayed. Empty directories are not recreat-
+		ed in remote directory.
 
 	resolve:
 		Removes conflict mark from file. The local file will now over-
@@ -82,7 +84,7 @@ OPTIONS:
 		another possibility is `bbdiff' or just `diff`.
 
 
-CONFIG FILE
+CONFIG FILES
 The configuration file is in INI style and kept in the local working directory
 in a hidden directory named ".msync/config.ini". Their usage should be clear.
 
@@ -94,9 +96,10 @@ sshKeyPath = ~/.ssh/id_rsa
 password   =
 diffTool   = bbdiff
 
-These will require explanation (soon). For now, see sample testing data in file
-"logic/opts.php".
-IGNORE_REGEX
-NEVER_HASH
-NO_PUSH_REGEX
+The config files containing the REGEX of files-to-ignore will require expla-
+nation (soon). For now, see sample testing data in those files.
+SampleConfigs/alwaysIgnore.txt
+SampleConfigs/neverHash.txt
+SampleConfigs/neverPush.txt
+
 

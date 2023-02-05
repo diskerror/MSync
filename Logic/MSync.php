@@ -120,7 +120,7 @@ class MSync
 			$this->report->status();
 		}
 		$this->report->statusLast();
-		$transfer->updateLocalDirectories($fileListRemote);
+		unset($transfer);
 
 		$this->report->out('Writing file info to manifest.');
 		$manifest = (new Manifest($this->opts));
@@ -164,13 +164,13 @@ class MSync
 				}
 			}
 
-			$this->report->out('Opening SFTP connection to remote directory.');
-			$transfer = new Xfer($this->opts);
-
 			//	Make sure directory is ready for possible conflicts.
 			if (!file_exists($this->opts->conflictPath)) {
 				mkdir($this->opts->conflictPath, 0755, true);
 			}
+
+			$this->report->out('Opening SFTP connection to remote directory.');
+			$transfer = new Xfer($this->opts);
 
 			//  Copy files from remote directory...
 			//      If the local file has changed then
@@ -178,28 +178,21 @@ class MSync
 			//      Else,
 			//          copy it in place.
 			$this->report->out('Pulling changes from remote directory.');
-			$directories = new FileList($this->opts);
 			$this->report->statusReset(count($remoteChanged));
 			foreach ($remoteChanged as $rChangedFname => $rChangedInfo) {
-				if ($rChangedInfo['ftype'] !== 'd') {
-					$transfer->pullFile($rChangedFname, $rChangedInfo, isset($localChanged[$rChangedFname]));
-				}
-				else {
-					$directories[$rChangedFname] = $rChangedInfo;
-				}
+				$transfer->pullFile($rChangedFname, $rChangedInfo, isset($localChanged[$rChangedFname]));
 				$this->report->status();
 			}
 			$this->report->statusLast();
-			$transfer->updateLocalDirectories($directories);
+			unset($transfer);
 
 			//  Write changed and new file stats into the manifest.
-			$this->report->out('Writing updates to manifest.');
+			$this->report->out('Writing changes to manifest.');
 			$manifest->update($remoteChanged);
 		}
 
 		//  If there are files in conflict then
 		//      launch user's preferred "diff" engine to compare files.
-		//      Or print paths to directories to compare.
 		if ($this->isConflicted()) {
 			exec($this->opts->diffTool . ' "' . $this->opts->localPath . '" "' . $this->opts->conflictPath . '"');
 		}
@@ -224,12 +217,12 @@ class MSync
 		}
 
 		//  Build list of local files that have changed.
-		$this->report->out('Retrieving local files that might have changed.');
+		$this->report->out('Gathering local files that have changed.');
 		$manifest      = new Manifest($this->opts);
 		$fileListLocal = new FileListLocal($this->opts);
 		$localChanged  = new FileList($this->opts);
 		foreach ($fileListLocal as $fname => $info) {
-			if ($info['ftype'] === 'f' && $manifest->isDifferent($fname, $info)) {
+			if ($info['ftype'] !== 'd' && $manifest->isDifferent($fname, $info)) {
 				$localChanged[$fname] = $info;
 			}
 		}
@@ -238,7 +231,6 @@ class MSync
 			$this->report->out('Nothing to do.');
 			return;
 		}
-
 
 		//  Build list of remote files that have changed or are new.
 		//  If any, abort push and advise user.
@@ -256,24 +248,17 @@ class MSync
 			}
 		}
 
-
 		$this->report->out('Opening SFTP connection to remote directory.');
 		$transfer = new Xfer($this->opts);
 
 		$this->report->out('Pushing changes to remote directory.');
-		$directories = [];
 		$this->report->statusReset(count($localChanged));
 		foreach ($localChanged as $fname => $info) {
-			if ($info['ftype'] === 'd') {
-				$directories[$fname] = $info;
-			}
-			else {
-				$transfer->pushFile($fname, $info);
-			}
+			$transfer->pushFile($fname, $info);
 			$this->report->status();
 		}
 		$this->report->statusLast();
-		$transfer->updateRemoteDirectories($directories);
+		unset($transfer);
 
 		$this->report->out('Writing updates to manifest.');
 		$manifest->update($localChanged);
@@ -304,6 +289,7 @@ class MSync
 		unlink($fullPath);
 		$this->report->out('"' . $this->opts->fileToResolve . '" has been marked as resolved.');
 	}
+
 
 	protected function showConflicted(): void
 	{
