@@ -2,6 +2,7 @@
 
 namespace Logic;
 
+use Exception;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Exception\UnableToConnectException;
 use phpseclib3\Net\SSH2;
@@ -24,7 +25,7 @@ class FileListRemote extends FileList
 		//	remove everything before the first '$', ie. "<?php\n" & etc.
 		$cmd = strstr($cmd, '$ret');
 		$cmd = strtr($cmd, "'", '"');    //	change all possible single-quotes to double
-		$cmd = 'ini_set("memory_limit", "512M"); ' . $cmd;
+		$cmd = 'try{ini_set("memory_limit","-1"); ' . $cmd;
 
 		//	Replace variables with literal strings.
 		$cmd = str_replace(
@@ -39,10 +40,21 @@ class FileListRemote extends FileList
 			$cmd
 		);
 
+		if(false) {
+			//	Required new-line provided by echo '$cmd' below.
+			$cmd .= '}catch(Throwable $t){$ret["__exception"]=$t->__toString();}echo json_encode($ret);';
 
-		$cmd .= ' echo json_encode($ret);';	//	Required new-line provided by echo '$cmd' below.
+			$response = $ssh->exec("echo '$cmd' | php -a");
+		}
+		else {
+			//	Required new-line provided by echo '$cmd' below.
+			$cmd .= '}catch(Throwable $t){$ret["__exception"]=$t->__toString();}file_put_contents("msync.json",json_encode($ret));';
 
-		$response = $ssh->exec("echo '$cmd' | php -a");
+			//	It's written to a file (file_put_contents) first because some systems can't do this in memory.
+			//	The file is written in the users home directory as the SSH2 object doesn't retain working directory.
+			$ssh->exec("echo '$cmd' | php -a");
+			$response = $ssh->exec("cat msync.json ; rm msync.json");
+		}
 
 		//	Remove text before first '[' or '{'.
 		$response = preg_replace('/^[^[{]*(.+)$/sAD', '$1', $response);
@@ -53,6 +65,10 @@ class FileListRemote extends FileList
 
 		$this->fileList =
 			json_decode($response, JSON_BIGINT_AS_STRING | JSON_OBJECT_AS_ARRAY | JSON_THROW_ON_ERROR);
+
+		if (key_exists('__exception', $this->fileList)) {
+			throw new Exception($this->fileList['__exception']);
+		}
 	}
 
 }
