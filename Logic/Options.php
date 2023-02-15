@@ -64,7 +64,7 @@ class Options
 	protected string $sshKeyPath = '';              //	relative path, becomes full path
 	protected string $password   = '';
 	protected bool   $verbose    = true;
-	protected string $diffTool   = 'phpstorm diff';    //	Also `bbdiff`
+	protected string $diffTool   = 'bbdiff';    //	Also `phpstorm diff`
 
 	protected string $verb;
 	protected string $fileToResolve;
