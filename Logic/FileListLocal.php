@@ -2,6 +2,8 @@
 
 namespace Logic;
 
+use Throwable;
+
 class FileListLocal extends FileList
 {
 
@@ -13,7 +15,12 @@ class FileListLocal extends FileList
 		$regexNoHash = $this->opts->regexNoHash;
 		$hashAlgo    = Options::HASH_ALGO;
 
-		require 'find.php';
+		try {
+			require 'find.php';
+		}
+		catch (Throwable $t) {
+			throw $t;
+		}
 
 		$this->fileList = $ret;
 	}
