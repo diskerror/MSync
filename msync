@@ -13,6 +13,7 @@ use Logic\HelpException;
 use Logic\MSync;
 
 ini_set('error_reporting', E_ALL);
+set_error_handler(function($n, $s, $f, $l){throw new ErrorException($s, $n, E_ERROR, $f, $l);});
 
 require 'vendor/diskerror/autoload/autoload.php';
 
