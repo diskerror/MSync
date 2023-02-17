@@ -2,19 +2,10 @@
 
 namespace Logic;
 
-use RuntimeException;
-
 class Manifest extends FileList
 {
 	protected function init(): void
 	{
-		if (!file_exists($this->opts->appDataPath)) {
-			mkdir($this->opts->appDataPath, 0755, true);
-		}
-		elseif (!is_dir($this->opts->appDataPath)) {
-			throw new RuntimeException('Bad app data directory.');
-		}
-
 		if (file_exists($this->opts->manifestFile)) {
 			$this->fileList = json_decode(file_get_contents($this->opts->manifestFile),
 				JSON_OBJECT_AS_ARRAY | JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
@@ -44,6 +35,11 @@ class Manifest extends FileList
 		foreach ($newList as $newFname => $newInfo) {
 			$this->fileList[$newFname] = $newInfo;
 		}
+	}
+
+	public function unsetAll()
+	{
+		$this->fileList = [];
 	}
 
 }
