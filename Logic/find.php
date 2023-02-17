@@ -30,7 +30,7 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path)) as
 			"sizeb"   => ($t === "f") ? $f->getSize() : null,
 			"mtime"   => ($t !== 'l') ? $f->getMTime() : null,
 			"hashval" => ($t === "f" && preg_match($regexNoHash, $rn) === 0) ? hash_file($hashAlgo, $fn) : "",
-			"owner"   => posix_getpwuid($f->getOwner())["name"],
+			"owner"   => ($t !== 'l') ? posix_getpwuid($f->getOwner())["name"] : "",
 		];
 	}
 }
