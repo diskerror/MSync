@@ -13,7 +13,7 @@ use phpseclib3\Net\SFTP;
 class Xfer
 {
 	protected Options $opts;
-	protected SFTP    $sftp;
+	protected SFTP    $remote;
 
 	protected Queue $remoteDirsToUpdate;
 	protected Queue $localDirsToUpdate;
@@ -32,13 +32,13 @@ class Xfer
 
 		$key = PublicKeyLoader::load(file_get_contents($this->opts->sshKeyPath));
 
-		$this->sftp = new SFTP($this->opts->host);
-		if (!$this->sftp->login($this->opts->user, $key)) {
+		$this->remote = new SFTP($this->opts->host);
+		if (!$this->remote->login($this->opts->user, $key)) {
 			throw new UnableToConnectException('Login failed');
 		}
 
-		$this->sftp->enableDatePreservation();
-		$this->sftp->chdir($this->opts->remotePath);
+		$this->remote->enableDatePreservation();
+		$this->remote->chdir($this->opts->remotePath);
 	}
 
 	public function __destruct()
@@ -54,24 +54,27 @@ class Xfer
 
 	public function pullFile(string $remoteFname, array $remoteInfo, bool $toConflict = false): void
 	{
-		$localfname = ($toConflict ? $this->opts->conflictPath : '') . $remoteFname;
-		$tempName   = $localfname . Options::TEMP_SUFFIX;
+		$localFname = ($toConflict ? $this->opts->conflictPath : '') . $remoteFname;
+		$tempName   = $localFname . Options::TEMP_SUFFIX;
 
-		$dname = preg_replace('@^(.*)/[^/]+$@', '$1', $tempName);
-		if (!file_exists($dname)) {
-			mkdir($dname, 0775, true);
+		if (strpos($tempName, '/') !== false) {
+			$dname = preg_replace('@^(.*?)[^/]+$@', '$1', $tempName);
+			if (!file_exists($dname) || !is_dir($dname)) {
+				mkdir($dname, 0775, true);
+			}
 		}
 
 		switch ($remoteInfo['ftype']) {
 			case 'f':
-				$this->sftp->get($remoteFname, $tempName);
-				rename($tempName, $localfname);
+//				$this->remote->get($remoteFname, $tempName);
+				file_put_contents($tempName, gzdecode($this->remote->exec("gzip -cn '{$this->opts->remotePath}/{$remoteFname}'")));
+				rename($tempName, $localFname);
 			break;
 
 			case 'l':
-				$target = $this->sftp->readlink($remoteFname);
+				$target = $this->remote->readlink($remoteFname);
 				symlink($target, $tempName);
-				rename($tempName, $localfname);
+				rename($tempName, $localFname);
 			break;
 
 			case 'd':
@@ -85,46 +88,30 @@ class Xfer
 	{
 		$tempName = $localFname . Options::TEMP_SUFFIX;
 
-		$dname = preg_replace('@^(.*)/[^/]+$@', '$1', $localFname);
-		if (!isset($remoteList[$dname])) {
-			$this->sftp->mkdir($dname, 0775, true);
+		if (strpos($tempName, '/') !== false) {
+			$dname = preg_replace('@^(.*?)[^/]+$@', '$1', $tempName);
+			if (!isset($remoteList[$dname])) {
+				$this->remote->mkdir($dname, 0775, true);
+			}
 		}
 
 		switch ($localInfo['ftype']) {
 			case 'f':
-				$this->sftp->put($tempName, $localFname, SFTP::SOURCE_LOCAL_FILE);
-				$this->sftp->chmod($tempName, 0664);
-				$this->sftp->exec("chgrp -f {$this->opts->group} '{$this->opts->remotePath}/{$tempName}'\n");
-				$this->sftp->delete($localFname);
-				$this->sftp->rename($tempName, $localFname);
-
-//					$this->sftp->exec(<<<HDOC
-//					chmod -f 664 "{$this->opts->remotePath}/{$tempName}"
-//					chgrp -f {$this->opts->group} "{$this->opts->remotePath}/{$tempName}"
-//					mv -f "{$this->opts->remotePath}/{$tempName}" "{$this->opts->remotePath}/{$localfname}"
-//
-//					HDOC
-//					);
+				$this->remote->put($tempName, $localFname, SFTP::SOURCE_LOCAL_FILE);
+				$this->remote->chmod($tempName, 0664);
+				$this->remote->chgrp($tempName, $this->opts->group);
+				$this->remote->delete($localFname);
+				$this->remote->rename($tempName, $localFname);
 			break;
 
 			case 'l':
 				$target = readlink($localFname);
-				$this->sftp->symlink($target, $tempName);
-				$this->sftp->touch($tempName, $localInfo['mtime'], $localInfo['mtime']);
-				$this->sftp->chmod($tempName, 0664);
-				$this->sftp->exec("chgrp -f {$this->opts->group} '{$this->opts->remotePath}/{$tempName}'\n");
-				$this->sftp->delete($localFname);
-				$this->sftp->rename($tempName, $localFname);
-
-//					$this->sftp->exec('ln -fs "' . $target . '" "' . $tempName . '"');
-//					$this->sftp->exec(<<<HDOC
-//					touch -m -d @{$localInfo['mtime']} "{$this->opts->remotePath}/{$tempName}"
-//					chmod -f 664 "{$this->opts->remotePath}/{$tempName}"
-//					chgrp -f {$this->opts->group} "{$this->opts->remotePath}/{$tempName}"
-//					mv -f "{$this->opts->remotePath}/{$tempName}" "{$this->opts->remotePath}/{$localfname}"
-//
-//					HDOC
-//					);
+				$this->remote->symlink($target, $tempName);
+				$this->remote->touch($tempName, $localInfo['mtime'], $localInfo['mtime']);
+				$this->remote->chmod($tempName, 0664);
+				$this->remote->exec("chgrp -f {$this->opts->group} '{$this->opts->remotePath}/{$tempName}'\n");
+				$this->remote->delete($localFname);
+				$this->remote->rename($tempName, $localFname);
 			break;
 
 			case 'd':
@@ -136,7 +123,7 @@ class Xfer
 
 	/**
 	 * Directories must be done after placing files so that mod times are transferred.
-	 * Empty directories will not be copied.
+	 * Empty directories have not been created so they don't get updated.
 	 */
 	protected function updateDirectories(): void
 	{
@@ -149,8 +136,8 @@ class Xfer
 
 		while (!$this->remoteDirsToUpdate->isEmpty()) {
 			$d = $this->remoteDirsToUpdate->pop();
-			if ($this->sftp->file_exists($d['fname'])) {
-				$this->sftp->touch($d['fname'], $d['mtime'], $d['mtime']);
+			if ($this->remote->file_exists($d['fname'])) {
+				$this->remote->touch($d['fname'], $d['mtime'], $d['mtime']);
 			}
 		}
 	}
