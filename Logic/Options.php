@@ -65,8 +65,8 @@ class Options
 	protected string $group      = 'www-data';      //	required group for files in remote directory
 	protected string $sshKeyPath = '';              //	relative path, becomes full path
 	protected string $password   = '';
-	protected bool   $verbose    = true;
-	protected string $diffTool   = 'bbdiff';    //	Also `phpstorm diff`
+	protected bool   $verbose    = false;
+	protected string $diffTool   = 'bbdiff';        //	Also `phpstorm diff`
 
 	protected string $verb;
 	protected string $fileToResolve;
@@ -191,12 +191,9 @@ class Options
 			throw new UnexpectedValueException('Bad SSH key path.');
 		}
 
-		$this->verbose = array_key_exists('v', $opts) || array_key_exists('verbose', $opts);
-
-		$appIfgf = $this->appDataPath . self::INIT_FILTER_GLOB_FILE;
-		$this->initIgnore = file_get_contents(
-			file_exists($appIfgf) ? $appIfgf : (self::SAMPLE_CONFIGS_DIR . self::INIT_FILTER_GLOB_FILE)
-		);
+		if (array_key_exists('v', $opts) || array_key_exists('verbose', $opts)) {
+			$this->verbose = true;
+		}
 
 		//	Set basic file exclude strings.
 		$this->regexIgnore = self::APP_DATA_DIR . '?.*|';    //	Always ignore our local application data.
@@ -259,6 +256,15 @@ class Options
 
 			case 'regexNoHash':
 				return '@^(?:' . $this->regexNoHash . ')$@';
+
+			case 'initIgnore':
+				if (!isset($this->initIgnore)) {
+					$appIfgf          = $this->appDataPath . self::INIT_FILTER_GLOB_FILE;
+					$this->initIgnore = file_get_contents(
+						file_exists($appIfgf) ? $appIfgf : (self::SAMPLE_CONFIGS_DIR . self::INIT_FILTER_GLOB_FILE)
+					);
+				}
+				return $this->initIgnore;
 		}
 
 		return $this->$name;

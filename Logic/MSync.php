@@ -131,7 +131,7 @@ class MSync
 //		$manifest->update($fileListRemote);
 
 		$this->report->out('Pulling new or different files.');
-		$cmd = "rsync " . ($this->opts->verbose ? "-v " : "") .
+		$cmd = "rsync " . ($this->opts->verbose ? "--info=progress2 " : "") .
 			"--filter=._- -rltDme ssh {$this->opts->user}@{$this->opts->host}:'{$this->opts->remotePath}/' '{$this->opts->localPath}/'";
 		passthru("echo '{$this->opts->initIgnore}' | {$cmd}");
 
