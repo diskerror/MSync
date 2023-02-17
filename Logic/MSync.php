@@ -95,40 +95,54 @@ class MSync
 			return;
 		}
 
-		if (file_exists($this->opts->conflictPath)) {
-			foreach (new RIterIterator(new RDirIterator($this->opts->conflictPath, FI::SKIP_DOTS)) as $f) {
-				unlink($f->getPathname());
-			}
-		}
+//		if (file_exists($this->opts->conflictPath)) {
+//			foreach (new RIterIterator(new RDirIterator($this->opts->conflictPath, FI::SKIP_DOTS)) as $f) {
+//				unlink($f->getPathname());
+//			}
+//		}
 
-		$this->report->out('Getting remote file list.');
-		$this->opts->addFileToNoHash();
-		$fileListRemote = new FileListRemote($this->opts);
+		exec("rm -rf '{$this->opts->conflictPath}/*'");
 
-		$this->report->out('Getting local file list.');
+//		$this->report->out('Getting remote file list.');
+//		$this->opts->addFileToNoHash();
+//		$fileListRemote = new FileListRemote($this->opts);
+
+//		$this->report->out('Getting local file list.');
+//		$fileListLocal = new FileListLocal($this->opts);
+
+//		$this->report->out('Opening SFTP connection to remote directory.');
+//		$transfer = new Xfer($this->opts);
+
+//		$this->report->out('Pulling new or different files.');
+//		$this->report->statusReset(count($fileListRemote));
+//		foreach ($fileListRemote as $fname => $finfo) {
+//			if ($fileListLocal->isDifferent($fname, $finfo)) {
+//				$transfer->pullFile($fname, $finfo);
+//			}
+//			$this->report->status();
+//		}
+//		$this->report->statusLast();
+//		unset($transfer);
+
+//		$this->report->out('Writing file info to manifest.');
+//		$manifest = new Manifest($this->opts);
+//		//	Clear old data if any.
+//		$manifest->unsetAll();
+//		$manifest->update($fileListRemote);
+
+		$this->report->out('Pulling new or different files.');
+		$cmd = "rsync " . ($this->opts->verbose ? "-v " : "") .
+			"--filter=._- -rltDme ssh {$this->opts->user}@{$this->opts->host}:'{$this->opts->remotePath}/' '{$this->opts->localPath}/'";
+		passthru("echo '{$this->opts->initIgnore}' | {$cmd}");
+
+		$this->report->out('Building file list.');
 		$fileListLocal = new FileListLocal($this->opts);
 
-		$this->report->out('Opening SFTP connection to remote directory.');
-		$transfer = new Xfer($this->opts);
-
-		$this->report->out('Pulling non-existent or files that differ.');
-		$this->report->statusReset(count($fileListRemote));
-		foreach ($fileListRemote as $fname => $finfo) {
-			if ($fileListLocal->isDifferent($fname, $finfo)) {
-				$transfer->pullFile($fname, $finfo);
-			}
-			$this->report->status();
-		}
-		$this->report->statusLast();
-		unset($transfer);
-
 		$this->report->out('Writing file info to manifest.');
-		$manifest = (new Manifest($this->opts));
+		$manifest = new Manifest($this->opts);
 		//	Clear old data if any.
-		foreach ($manifest as $fname => $info) {
-			unset($manifest[$fname]);
-		}
-		$manifest->update($fileListRemote);
+		$manifest->unsetAll();
+		$manifest->update($fileListLocal);
 
 		$this->report->out('Initialization complete.');
 	}

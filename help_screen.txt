@@ -32,9 +32,9 @@ affect on the running site.
 VERBS
 
 	init:
-		Copies remote directory into the current or specified directory.
-		If there are files in the target directory then only new or
-		changed files are copied. Nothing is deleted.
+		Uses RSYNC to copy remote directory into the current or speci-
+		fied directory. If there are files in the target directory then
+		only new or changed files are copied. Nothing is deleted.
 
 	pull:
 		Pull new files from remote directory. If a file has been changed
@@ -99,6 +99,7 @@ diffTool   = bbdiff
 The config files containing the REGEX of files-to-ignore will require expla-
 nation (soon). For now, see sample testing data in those files.
 SampleConfigs/alwaysIgnore.txt
+SampleConfigs/initFilter.rsync
 SampleConfigs/neverHash.txt
 SampleConfigs/neverPush.txt
 

@@ -46,6 +46,8 @@ class Options
 	 */
 	public const    HASH_ALGO = 'fnv164';
 
+	protected const INIT_FILTER_GLOB_FILE = 'initFilter.rsync';
+
 	/**
 	 * Files that contain the regex file transfer rules.
 	 */
@@ -56,10 +58,10 @@ class Options
 	/**
 	 * Settings from command line and config file.
 	 */
-	protected string $host       = '192.168.1.77';  //	IP address or FQDN
+	protected string $host       = '192.168.1.82';  //	IP address or FQDN
 	protected string $remotePath = '/var/www/html'; //	full path
 	protected string $localPath;                    //	not in config file, relative path, becomes full path
-	protected string $user       = '';              //	user name in remote directory
+	protected string $user       = '';              //	username in remote directory
 	protected string $group      = 'www-data';      //	required group for files in remote directory
 	protected string $sshKeyPath = '';              //	relative path, becomes full path
 	protected string $password   = '';
@@ -72,6 +74,7 @@ class Options
 	protected ?int   $restIndex;
 	protected string $appDataPath;
 	protected array  $iniAllowed;
+	protected string $initIgnore;
 	protected string $regexIgnore;
 	protected string $regexNoHash;
 
@@ -79,7 +82,7 @@ class Options
 	{
 		/**
 		 * Create list of allowed INI keys.
-		 * Unset, null, or const properties are not picked up.
+		 * Unset, null, or const properties are not included here. We take advantage of this.
 		 */
 		$this->iniAllowed = array_keys(get_object_vars($this));
 
@@ -189,6 +192,11 @@ class Options
 		}
 
 		$this->verbose = array_key_exists('v', $opts) || array_key_exists('verbose', $opts);
+
+		$appIfgf = $this->appDataPath . self::INIT_FILTER_GLOB_FILE;
+		$this->initIgnore = file_get_contents(
+			file_exists($appIfgf) ? $appIfgf : (self::SAMPLE_CONFIGS_DIR . self::INIT_FILTER_GLOB_FILE)
+		);
 
 		//	Set basic file exclude strings.
 		$this->regexIgnore = self::APP_DATA_DIR . '?.*|';    //	Always ignore our local application data.

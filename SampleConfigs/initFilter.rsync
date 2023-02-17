@@ -1,0 +1,10 @@
+# Rsync style globbing with comments.
+- /.?*
+- /.?*/***
+- **/.?*
+- **/.?*/***
+- **.log
+- **.csv
+- **.zip
+- sugarcrm_old.sql
+- /upload*/***
