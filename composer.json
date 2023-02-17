@@ -13,6 +13,7 @@
 		"ext-json": "*",
 		"ext-posix": "*",
 		"ext-readline": "*",
+		"ext-zlib":"*",
 		"diskerror/autoload": "dev-main",
 		"php-ds/php-ds": "1.4.*",
 		"phpseclib/phpseclib": "3.0.*"

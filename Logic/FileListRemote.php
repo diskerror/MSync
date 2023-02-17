@@ -5,7 +5,7 @@ namespace Logic;
 use Exception;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Exception\UnableToConnectException;
-use phpseclib3\Net\SSH2;
+use phpseclib3\Net\SFTP;
 use UnexpectedValueException;
 
 class FileListRemote extends FileList
@@ -14,9 +14,9 @@ class FileListRemote extends FileList
 	public function init(): void
 	{
 		$sshKey = PublicKeyLoader::load(file_get_contents($this->opts->sshKeyPath));
-		$ssh    = new SSH2($this->opts->host);
+		$remote    = new SFTP($this->opts->host);
 
-		if (!$ssh->login($this->opts->user, $sshKey)) {
+		if (!$remote->login($this->opts->user, $sshKey)) {
 			throw new UnableToConnectException('Login failed');
 		}
 
@@ -24,8 +24,8 @@ class FileListRemote extends FileList
 		$cmd = php_strip_whitespace('find.php');
 		//	remove everything before the first '$', ie. "<?php\n" & etc.
 		$cmd = strstr($cmd, '$ret');
-		$cmd = strtr($cmd, "'", '"');    //	change all possible single-quotes to double
-		$cmd = 'try{ini_set("memory_limit","-1"); ' . $cmd;
+		$cmd = strtr($cmd, "'", '"');    //	insure all single-quotes are double-quotes
+		$cmd = 'try{ini_set("memory_limit","-1");' . $cmd . '}catch(Throwable $t){$ret["__exception"]=$t->__toString();}';
 
 		//	Replace variables with literal strings.
 		$cmd = str_replace(
@@ -41,23 +41,19 @@ class FileListRemote extends FileList
 		);
 
 		if(false) {
-			//	Required new-line provided by echo '$cmd' below.
-			$cmd .= '}catch(Throwable $t){$ret["__exception"]=$t->__toString();}echo json_encode($ret);';
+			$response = $remote->exec("php -r '{$cmd}echo json_encode(\$ret);'");
 
-			$response = $ssh->exec("echo '$cmd' | php -a");
+			//	Remove text before first '[' or '{'.
+			$response = preg_replace('/^[^[{]*(.+)$/sAD', '$1', $response);
 		}
 		else {
-			//	Required new-line provided by echo '$cmd' below.
-			$cmd .= '}catch(Throwable $t){$ret["__exception"]=$t->__toString();}file_put_contents("msync.json",json_encode($ret));';
-
 			//	It's written to a file (file_put_contents) first because some systems can't do this in memory.
 			//	The file is written in the users home directory as the SSH2 object doesn't retain working directory.
-			$ssh->exec("echo '$cmd' | php -a");
-			$response = $ssh->exec("cat msync.json ; rm msync.json");
+			$remote->exec("php -r '{$cmd}file_put_contents(\"msync.json\",json_encode(\$ret));'");
+			$remote->exec("gzip -n msync.json");
+			$response = gzdecode($remote->get("msync.json.gz"));
+			$remote->delete("msync.json.gz");
 		}
-
-		//	Remove text before first '[' or '{'.
-		$response = preg_replace('/^[^[{]*(.+)$/sAD', '$1', $response);
 
 		if ($response == '') {
 			throw new UnexpectedValueException('Blank response from remote.');
@@ -67,6 +63,7 @@ class FileListRemote extends FileList
 			json_decode($response, JSON_BIGINT_AS_STRING | JSON_OBJECT_AS_ARRAY | JSON_THROW_ON_ERROR);
 
 		if (key_exists('__exception', $this->fileList)) {
+			var_export($this->fileList);
 			throw new Exception($this->fileList['__exception']);
 		}
 	}
