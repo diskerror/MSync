@@ -5,17 +5,17 @@
  * Synchronize directories like rsync but with an additional manifest so that
  * changes on the remote system are caught before damage is done.
  *
- * Written using macOS 13.1 Ventura for the local workstation and
- * connecting to a server running Debian 10.
+ * Written using macOS 13.1 and 13.2 Ventura for the local workstation and
+ * connecting to a server running Debian 10 and 11
  */
 
 use Logic\HelpException;
 use Logic\MSync;
 
 ini_set('error_reporting', E_ALL);
-set_error_handler(function($n, $s, $f, $l){throw new ErrorException($s, $n, E_ERROR, $f, $l);});
+set_error_handler(function($n, $s, $f, $l) { throw new ErrorException($s, $n, E_ERROR, $f, $l); });
 
-require 'vendor/diskerror/autoload/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 const USAGE = <<<'NDOC'
 Usage:
@@ -28,12 +28,12 @@ $exitCode = 0;
 
 try {
 	$msync = new MSync($argv);
-	
+
 	ini_set('memory_limit', -1);
 
 	$msync->run();
 }
-catch (HelpException $e){
+catch (HelpException $e) {
 	fprintf(STDOUT, USAGE . PHP_EOL);
 	fprintf(STDOUT, file_get_contents(__DIR__ . '/help_screen.txt'));
 }

@@ -14,12 +14,8 @@
 		"ext-posix": "*",
 		"ext-readline": "*",
 		"ext-zlib":"*",
-		"diskerror/autoload": "dev-main",
 		"php-ds/php-ds": "1.4.*",
 		"phpseclib/phpseclib": "3.0.*"
-	},
-	"require-dev": {
-		"phpunit/phpunit": "9.5.*"
 	},
 	"suggest": {
 		"ext-ds": "Extension for data structures rather than the PHP array implementation."
@@ -31,8 +27,11 @@
 		}
 	],
 	"autoload": {
+		"files": [
+			"Logic/MSync.php"
+		],
 		"psr-4": {
-			"Logic\\": "Logic"
+			"Logic\\": "Logic/"
 		}
 	}
 }

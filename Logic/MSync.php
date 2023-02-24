@@ -80,7 +80,7 @@ class MSync
 		$continueYN = 'no';   //  default reply
 		if (file_exists($this->opts->manifestFile)) {
 			$this->report->shout('This is an MSync managed directory!');
-			$this->report->shout('Do you wish to update or replace all working files? [y|N]: ', false);
+			$this->report->shout('Do you wish to reinitialize? [y|N]: ', false);
 		}
 		else {
 			$this->report->shout('Do you wish to update or add to the contents of this directory? [y|N]: ', false);
