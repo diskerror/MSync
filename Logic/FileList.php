@@ -66,7 +66,7 @@ class FileList implements Countable, ArrayAccess, IteratorAggregate, JsonSeriali
 	}
 
 
-	public function count()
+	public function count(): int
 	{
 		return count($this->fileList);
 	}
@@ -76,27 +76,27 @@ class FileList implements Countable, ArrayAccess, IteratorAggregate, JsonSeriali
 		return $this->fileList[$offset];
 	}
 
-	public function offsetSet($offset, $value)
+	public function offsetSet($offset, $value): void
 	{
 		$this->fileList[$offset] = $value;
 	}
 
-	public function offsetExists($offset)
+	public function offsetExists($offset): bool
 	{
 		return isset($this->fileList[$offset]);
 	}
 
-	public function offsetUnset($offset)
+	public function offsetUnset($offset): void
 	{
 		unset($this->fileList[$offset]);
 	}
 
-	public function getIterator()
+	public function getIterator(): ArrayIterator
 	{
 		return new ArrayIterator($this->fileList);
 	}
 
-	public function jsonSerialize()
+	public function jsonSerialize(): array
 	{
 		return $this->fileList;
 	}
